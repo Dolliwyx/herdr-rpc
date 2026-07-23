@@ -2,6 +2,12 @@
 
 A personal WSL2 companion for Herdr and Discord Stable on Windows. It publishes only a focused workspace label (unless private), agent counts, and the Presence start timestamp. It never sends agent names, paths, buttons, credentials, or data from remote/named Herdr sessions.
 
+## Features
+
+- Publishes the focused Herdr workspace, agent counts, and Presence start timestamp to Discord.
+- Keeps workspace labels private when they match configured private patterns.
+- Runs as a personal WSL2 setup using Windows Discord and `npiperelay.exe`; paths, dependencies, and launch behavior will likely need changes for other environments.
+
 ## Requirements
 
 - Node.js 24
