@@ -1,0 +1,75 @@
+# Herdr Discord Rich Presence companion
+
+A personal WSL2 companion for Herdr and Discord Stable on Windows. It publishes only a focused workspace label (unless private), agent counts, and the Presence start timestamp. It never sends agent names, paths, buttons, credentials, or data from remote/named Herdr sessions.
+
+## Requirements
+
+- Node.js 24
+- Discord Stable running on Windows, exposing `\\.\pipe\discord-ipc-0`
+- `socat` in WSL and `npiperelay.exe` available from WSL
+- A Discord application client ID. No client secret or bot token is used.
+
+Install dependencies:
+
+```sh
+npm install
+```
+
+Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`:
+
+```json
+{
+  "clientId": "YOUR_DISCORD_APPLICATION_CLIENT_ID",
+  "privatePatterns": ["client-*", "Personal"],
+  "largeImageKey": "herdr",
+  "resetTimestampOnUpdate": false
+}
+```
+
+Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`). Labels are shared by default. `largeImageKey` is optional; upload [`assets/herdr.png`](assets/herdr.png) to the Discord application's **Rich Presence > Art Assets** as `herdr`, or use its uploaded asset key. `resetTimestampOnUpdate` defaults to `false`, preserving the start time while details or state change; set it to `true` to restart the visible timer on each republish. The Presence start timestamp reveals when the companion last started its current Presence, so consider that when choosing whether to use this companion. Invalid config reloads retain the last valid configuration; fix the reported file and save again. Atomic editor saves are supported.
+
+## Behavior
+
+The companion directly connects to Herdr's default local Unix socket (`$HERDR_SOCKET` when set, otherwise `${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It takes a fresh session snapshot, subscribes to workspace and agent-affecting events, then takes another authoritative snapshot one second after an event burst. It never folds events into a local state mirror.
+
+Presence exists only with one or more detected agents (`snapshot.agents`). Counts cover all workspaces:
+
+- Details: `In {focused workspace label}`, or `Working in Herdr` when no Focused Workspace exists or its label matches a Private Pattern.
+- State: `{working} working · {detected} detected`.
+
+Protocol validation is deliberately strict: this release requires Herdr protocol **17** exactly. A malformed, unavailable, or incompatible Herdr connection clears Discord Presence immediately and reconnects with bounded backoff. Discord restarts/absence also retry quietly with bounded backoff. The daemon logs transitions and actionable failures, not labels or every event.
+
+## Interactive Zsh launcher (WSL2)
+
+1. Install `socat` (for example, `sudo apt install socat`). Download `npiperelay.exe` from [jstarks/npiperelay](https://github.com/jstarks/npiperelay/releases) **to the Windows filesystem** under `/mnt/c/...`; it cannot run from Linux storage. Symlink it into WSL:
+
+```sh
+mkdir -p ~/.local/bin && ln -s /mnt/c/Users/YOU/bin/npiperelay.exe ~/.local/bin/npiperelay.exe
+```
+
+2. Add this one line to `~/.zshrc` **after mise initialization**, so its Node installation is on `PATH`:
+
+```sh
+$HOME/Code/personal/herdr-rpc/bin/herdr-presence start
+```
+
+The launcher starts on the first interactive Zsh, not at Windows login. Later shells return immediately: a non-blocking `flock` held by the supervisor prevents duplicate instances. It exposes `$XDG_RUNTIME_DIR/discord-ipc-0` with mode `0600` (or a private `/tmp` fallback when that variable is absent), forwarding to the Windows Discord pipe. If the relay or companion exits, it restarts both with bounded backoff; the companion retains its Herdr and Discord reconnect behavior.
+
+Useful commands:
+
+```sh
+$HOME/Code/personal/herdr-rpc/bin/herdr-presence status
+$HOME/Code/personal/herdr-rpc/bin/herdr-presence restart
+$HOME/Code/personal/herdr-rpc/bin/herdr-presence stop
+tail -f "${XDG_STATE_HOME:-$HOME/.local/state}/herdr-presence/launcher.log"
+```
+
+The lock is under `$XDG_RUNTIME_DIR/herdr-presence`; the Discord socket is `$XDG_RUNTIME_DIR/discord-ipc-0`. When `XDG_RUNTIME_DIR` is absent, both use the documented private `/tmp` fallback. PID and log state are under `${XDG_STATE_HOME:-~/.local/state}/herdr-presence`. `start` is silent; dependency failures for `node`, `socat`, `flock`, or `~/.local/bin/npiperelay.exe` are recorded in the log.
+
+For foreground troubleshooting, run `npm start` after the relay is active.
+
+## Tests
+
+```sh
+npm test
+```

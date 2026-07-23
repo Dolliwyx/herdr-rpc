@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+# Called from interactive .zshrc after mise has initialized PATH.
+set -u
+umask 077
+
+SCRIPT_PATH="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)/$(basename -- "${BASH_SOURCE[0]}")"
+REPO_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")/.." && pwd -P)"
+RUNTIME_BASE="${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}/herdr-presence-${UID}}"
+RUNTIME_DIR="$RUNTIME_BASE/herdr-presence"
+STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/herdr-presence"
+SOCKET="$RUNTIME_BASE/discord-ipc-0"
+LOCK_FILE="$RUNTIME_DIR/supervisor.lock"
+PID_FILE="$STATE_DIR/supervisor.pid"
+LOG_FILE="$STATE_DIR/launcher.log"
+
+prepare_dirs() {
+  mkdir -p "$RUNTIME_DIR" "$STATE_DIR"
+  chmod 700 "$RUNTIME_DIR" "$STATE_DIR"
+}
+
+log() {
+  printf '[herdr-presence launcher] %s\n' "$*" >> "$LOG_FILE"
+}
+
+pid_is_supervisor() {
+  local pid="$1" command
+  [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null || return 1
+  [[ -r "/proc/$pid/cmdline" ]] || return 1
+  command="$(tr '\0' ' ' < "/proc/$pid/cmdline")"
+  [[ "$command" == *"$SCRIPT_PATH --supervise"* ]]
+}
+
+remove_own_pid_file() {
+  [[ -r "$PID_FILE" && "$(<"$PID_FILE")" == "$$" ]] && rm -f "$PID_FILE"
+}
+
+supervise() {
+  prepare_dirs
+
+  local flock_bin node_bin socat_bin relay_pid node_pid delay_index=0 delay
+  flock_bin="$(command -v flock || true)"
+  node_bin="$(command -v node || true)"
+  socat_bin="$(command -v socat || true)"
+  if [[ -z "$flock_bin" || -z "$node_bin" || -z "$socat_bin" || ! -x "$HOME/.local/bin/npiperelay.exe" ]]; then
+    log "Cannot start: require flock, node (from the interactive shell PATH), socat, and executable ~/.local/bin/npiperelay.exe."
+    return 1
+  fi
+
+  exec 9>"$LOCK_FILE"
+  "$flock_bin" -n 9 || { log "Another supervisor holds the lock; exiting."; return 0; }
+  printf '%s\n' "$$" > "$PID_FILE"
+
+  cleanup() {
+    trap - TERM INT EXIT
+    [[ -n "${relay_pid:-}" ]] && kill "$relay_pid" 2>/dev/null || true
+    [[ -n "${node_pid:-}" ]] && kill "$node_pid" 2>/dev/null || true
+    [[ -n "${relay_pid:-}" ]] && wait "$relay_pid" 2>/dev/null || true
+    [[ -n "${node_pid:-}" ]] && wait "$node_pid" 2>/dev/null || true
+    rm -f "$SOCKET"
+    remove_own_pid_file
+  }
+  trap 'cleanup; exit 0' TERM INT
+  trap cleanup EXIT
+
+  while :; do
+    rm -f "$SOCKET"
+    "$socat_bin" "UNIX-LISTEN:$SOCKET,fork,mode=0600" "EXEC:$HOME/.local/bin/npiperelay.exe -ep -s //./pipe/discord-ipc-0,nofork" &
+    relay_pid=$!
+    "$node_bin" "$REPO_DIR/src/index.js" &
+    node_pid=$!
+
+    wait -n "$relay_pid" "$node_pid" || true
+    kill "$relay_pid" "$node_pid" 2>/dev/null || true
+    wait "$relay_pid" 2>/dev/null || true
+    wait "$node_pid" 2>/dev/null || true
+    relay_pid=
+    node_pid=
+    rm -f "$SOCKET"
+
+    case "$delay_index" in
+      0) delay=1 ;; 1) delay=2 ;; 2) delay=5 ;; 3) delay=10 ;; *) delay=30 ;;
+    esac
+    delay_index=$((delay_index + 1))
+    log "Relay or companion exited; restarting both in ${delay}s."
+    sleep "$delay"
+  done
+}
+
+start() {
+  prepare_dirs
+  nohup "$SCRIPT_PATH" --supervise </dev/null >> "$LOG_FILE" 2>&1 &
+}
+
+stop() {
+  prepare_dirs
+  local pid
+  [[ -r "$PID_FILE" ]] || return 0
+  pid="$(<"$PID_FILE")"
+  if pid_is_supervisor "$pid"; then
+    kill -TERM "$pid"
+  else
+    rm -f "$PID_FILE"
+  fi
+}
+
+status() {
+  prepare_dirs
+  local pid
+  [[ -r "$PID_FILE" ]] || { printf 'stopped\n'; return 3; }
+  pid="$(<"$PID_FILE")"
+  if pid_is_supervisor "$pid"; then
+    printf 'running (pid %s)\n' "$pid"
+    return 0
+  fi
+  rm -f "$PID_FILE"
+  printf 'stopped\n'
+  return 3
+}
+
+restart() {
+  prepare_dirs
+  local attempt pid
+  if [[ -r "$PID_FILE" ]]; then
+    pid="$(<"$PID_FILE")"
+    if pid_is_supervisor "$pid"; then
+      kill -TERM "$pid"
+      for attempt in {1..100}; do
+        pid_is_supervisor "$pid" || { rm -f "$PID_FILE"; start; return; }
+        sleep 0.05
+      done
+      log "Restart timed out waiting for supervisor pid $pid to exit."
+      printf 'herdr-presence: restart timed out waiting for supervisor pid %s to exit\n' "$pid" >&2
+      return 1
+    fi
+    rm -f "$PID_FILE"
+  fi
+  start
+}
+
+case "${1:-start}" in
+  start) start ;;
+  stop) stop ;;
+  restart) restart ;;
+  status) status ;;
+  --supervise) supervise ;;
+  *) printf 'Usage: %s {start|stop|restart|status}\n' "$SCRIPT_PATH" >&2; exit 2 ;;
+esac
