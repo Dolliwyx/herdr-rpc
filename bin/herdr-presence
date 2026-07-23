@@ -64,9 +64,9 @@ supervise() {
 
   while :; do
     rm -f "$SOCKET"
-    "$socat_bin" "UNIX-LISTEN:$SOCKET,fork,mode=0600" "EXEC:$HOME/.local/bin/npiperelay.exe -ep -s //./pipe/discord-ipc-0,nofork" &
+    "$socat_bin" "UNIX-LISTEN:$SOCKET,fork,mode=0600" "EXEC:$HOME/.local/bin/npiperelay.exe -ep -s //./pipe/discord-ipc-0,nofork" 9>&- &
     relay_pid=$!
-    "$node_bin" "$REPO_DIR/src/index.js" &
+    "$node_bin" "$REPO_DIR/src/index.js" 9>&- &
     node_pid=$!
 
     wait -n "$relay_pid" "$node_pid" || true
