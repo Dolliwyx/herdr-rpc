@@ -56,6 +56,17 @@ test('publishes the configured large image asset', async (t) => {
   presence.disconnect();
 });
 
+test('only publishes hover text with a large image key', async () => {
+  const presence = new DiscordPresence(() => {}, FakeClient);
+  presence.configure({ clientId: '1', privatePatterns: [] });
+  await tick();
+  presence.set({ details: 'In Shared', largeImageText: 'hover' }); await tick();
+  assert.equal('largeImageText' in presence.client.calls.at(-1)[1], false);
+  presence.configure({ clientId: '1', privatePatterns: [], largeImageKey: 'herdr' }); await tick();
+  assert.equal(presence.client.calls.at(-1)[1].largeImageText, 'hover');
+  presence.disconnect();
+});
+
 test('retains same-client configuration without reconnecting', async () => {
   const presence = new DiscordPresence(() => {}, FakeClient);
   presence.configure({ clientId: '1', privatePatterns: [] });

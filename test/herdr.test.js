@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deadline, REQUEST_TIMEOUT_MS } from '../src/herdr.js';
+import { deadline, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '../src/herdr.js';
+
+test('subscribes to focused pane context events', () => {
+  const types = presenceSubscriptions({ agents: [] }).map(({ type }) => type);
+  assert.ok(types.includes('tab.focused'));
+  assert.ok(types.includes('pane.focused'));
+  assert.ok(types.includes('pane.updated'));
+});
 
 test('deadline uses the fixed request timeout and can be cleaned up', () => {
   let scheduled;

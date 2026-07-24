@@ -1,6 +1,7 @@
 import { mkdir, readFile, watch } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { DEFAULT_TEMPLATES } from './presence.js';
 
 export function configPath(env = process.env) {
   return join(env.XDG_CONFIG_HOME || join(homedir(), '.config'), 'herdr-presence', 'config.json');
@@ -20,11 +21,20 @@ export function parseConfig(text) {
   if (value.resetTimestampOnUpdate !== undefined && typeof value.resetTimestampOnUpdate !== 'boolean') {
     throw new TypeError('config.json "resetTimestampOnUpdate" must be a boolean');
   }
+  if (value.templates !== undefined && (!value.templates || Array.isArray(value.templates) || typeof value.templates !== 'object')) {
+    throw new TypeError('config.json "templates" must be an object');
+  }
+  const templates = { ...DEFAULT_TEMPLATES, ...value.templates };
+  if (!Object.keys(value.templates || {}).every((key) => Object.hasOwn(DEFAULT_TEMPLATES, key))
+    || !Object.values(value.templates || {}).every((template) => typeof template === 'string')) {
+    throw new TypeError('config.json "templates" only permits string details, state, and largeImageText');
+  }
   return {
     clientId: value.clientId.trim(),
     privatePatterns: value.privatePatterns || [],
     largeImageKey: value.largeImageKey?.trim(),
     resetTimestampOnUpdate: value.resetTimestampOnUpdate ?? false,
+    templates,
   };
 }
 
@@ -49,7 +59,8 @@ export class ConfigWatcher {
       const changed = next.clientId !== this.current?.clientId
         || JSON.stringify(next.privatePatterns) !== JSON.stringify(this.current?.privatePatterns)
         || next.largeImageKey !== this.current?.largeImageKey
-        || next.resetTimestampOnUpdate !== this.current?.resetTimestampOnUpdate;
+        || next.resetTimestampOnUpdate !== this.current?.resetTimestampOnUpdate
+        || JSON.stringify(next.templates) !== JSON.stringify(this.current?.templates);
       this.current = next;
       if (changed) this.onConfig(next);
     } catch (error) {

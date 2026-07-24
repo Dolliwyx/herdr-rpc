@@ -1,6 +1,6 @@
 # Herdr Discord Rich Presence companion
 
-A personal WSL2 companion for Herdr and Discord Stable on Windows. It publishes only a focused workspace label (unless private), agent counts, and the Presence start timestamp. It never sends agent names, paths, buttons, credentials, or data from remote/named Herdr sessions.
+A personal WSL2 companion for Herdr and Discord Stable on Windows. It can publish a focused workspace label, Git branch, harness, Herdr version, agent counts, and the Presence start timestamp. It never sends paths, buttons, credentials, or data from remote/named Herdr sessions.
 
 ## Features
 
@@ -28,11 +28,16 @@ Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`:
   "clientId": "YOUR_DISCORD_APPLICATION_CLIENT_ID",
   "privatePatterns": ["client-*", "Personal"],
   "largeImageKey": "herdr",
-  "resetTimestampOnUpdate": false
+  "resetTimestampOnUpdate": false,
+  "templates": {
+    "details": "In {workspace} ({branch})",
+    "state": "{working} working · {detected} detected",
+    "largeImageText": "Herdr{herdrVersion?} · {harness?}"
+  }
 }
 ```
 
-Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`). Labels are shared by default. `largeImageKey` is optional; upload [`assets/herdr.png`](assets/herdr.png) to the Discord application's **Rich Presence > Art Assets** as `herdr`, or use its uploaded asset key. `resetTimestampOnUpdate` defaults to `false`, preserving the start time while details or state change; set it to `true` to restart the visible timer on each republish. The Presence start timestamp reveals when the companion last started its current Presence, so consider that when choosing whether to use this companion. Invalid config reloads retain the last valid configuration; fix the reported file and save again. Atomic editor saves are supported.
+Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`). Labels, branches, harness IDs, and Herdr versions are shared by default. A Private Workspace substitutes `Private workspace` and `Private branch`; Git is never invoked for it. `templates` is a strict object: it accepts only string `details`, `state`, and `largeImageText` values, merges partial overrides with the defaults above, and preserves whitespace (including empty values). Templates recognize `{workspace}`, `{branch}`, `{working}`, `{detected}`, `{herdrVersion?}`, and `{harness?}`. `{{` and `}}` write literal braces; unknown or malformed placeholders stay literal. Empty rendered fields are omitted and Discord text is safely limited to 128 grapheme clusters with `…`. `largeImageText` is sent only when `largeImageKey` is configured. `largeImageKey` is optional; upload [`assets/herdr.png`](assets/herdr.png) to the Discord application's **Rich Presence > Art Assets** as `herdr`, or use its uploaded asset key. `resetTimestampOnUpdate` defaults to `false`, preserving the start time while details or state change; set it to `true` to restart the visible timer on each republish. The Presence start timestamp reveals when the companion last started its current Presence, so consider that when choosing whether to use this companion. Invalid config reloads retain the last valid configuration; fix the reported file and save again. Atomic editor saves are supported.
 
 ## Behavior
 
@@ -40,8 +45,11 @@ The companion directly connects to Herdr's default local Unix socket (`$HERDR_SO
 
 Presence exists only with one or more detected agents (`snapshot.agents`). Counts cover all workspaces:
 
-- Details: `In {focused workspace label}`, or `Working in Herdr` when no Focused Workspace exists or its label matches a Private Pattern.
-- State: `{working} working · {detected} detected`.
+- Default Details: `In {workspace} ({branch})`; branch is the raw Git branch, detached `@<short hash>`, or `No branch` when Git definitively reports no repository/branch. A transient Git failure retains the last known branch.
+- Default State: `{working} working · {detected} detected`.
+- Default image hover: `Herdr{herdrVersion?} · {harness?}`. Snapshot version is preferred; otherwise `herdr --version` is attempted once and cached. Harness comes from the focused pane agent ID (known IDs are humanized; unknown IDs remain raw).
+
+Git resolution is companion-only: it checks the focused pane's `foreground_cwd` (then `cwd`) immediately after a focused context change and every five seconds only while Presence is active. Checks use a one-second timeout, one in flight at most, retain the last branch after transient failures, and never alter the Herdr protocol.
 
 Protocol validation is deliberately strict: this release requires Herdr protocol **17** exactly. A malformed, unavailable, or incompatible Herdr connection clears Discord Presence immediately and reconnects with bounded backoff. Discord restarts/absence also retry quietly with bounded backoff. The daemon logs transitions and actionable failures, not labels or every event.
 

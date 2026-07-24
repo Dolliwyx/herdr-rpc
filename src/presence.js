@@ -1,3 +1,17 @@
+export const DEFAULT_TEMPLATES = Object.freeze({
+  details: 'In {workspace} ({branch})',
+  state: '{working} working · {detected} detected',
+  largeImageText: 'Herdr{herdrVersion?} · {harness?}',
+});
+
+const LIMIT = 128;
+const HARNESS_NAMES = {
+  pi: 'Pi', claude: 'Claude Code', codex: 'Codex', gemini: 'Gemini', cursor: 'Cursor',
+  devin: 'Devin', cline: 'Cline', opencode: 'OpenCode', copilot: 'GitHub Copilot',
+  agy: 'Agy', omp: 'OMP', mastracode: 'MastraCode', kimi: 'Kimi', kiro: 'Kiro',
+  droid: 'Droid', amp: 'Amp', grok: 'Grok', hermes: 'Hermes', kilo: 'Kilo', qodercli: 'Qoder CLI', maki: 'Maki',
+};
+
 export function matchesPrivatePattern(label, patterns) {
   return patterns.some((pattern) => {
     const expression = String(pattern)
@@ -8,27 +22,65 @@ export function matchesPrivatePattern(label, patterns) {
   });
 }
 
-export function presenceFromSnapshot(snapshot, privatePatterns = []) {
+export function truncateText(value, limit = LIMIT) {
+  const segments = [...new Intl.Segmenter().segment(value)].map(({ segment }) => segment);
+  return segments.length > limit ? `${segments.slice(0, limit - 1).join('')}…` : value;
+}
+
+export function renderTemplate(template, values) {
+  let output = '';
+  for (let index = 0; index < template.length;) {
+    if (template.startsWith('{{', index)) { output += '{'; index += 2; continue; }
+    if (template.startsWith('}}', index)) { output += '}'; index += 2; continue; }
+    if (template[index] !== '{') { output += template[index++]; continue; }
+    const end = template.indexOf('}', index + 1);
+    if (end === -1) { output += template[index++]; continue; }
+    const token = template.slice(index + 1, end);
+    if (Object.hasOwn(values, token)) output += values[token] ?? '';
+    else output += template.slice(index, end + 1);
+    index = end + 1;
+  }
+  return truncateText(output);
+}
+
+export function focusedContext(snapshot, privatePatterns = [], branch) {
+  const workspace = snapshot.workspaces.find(({ workspace_id }) => workspace_id === snapshot.focused_workspace_id);
+  const privateWorkspace = !workspace?.label || matchesPrivatePattern(workspace.label, privatePatterns);
+  const pane = snapshot.panes?.find(({ pane_id }) => pane_id === snapshot.focused_pane_id);
+  const agent = pane?.agent;
+  const agentId = typeof agent === 'string' ? agent : agent?.id || agent?.agent_id;
+  return {
+    workspace: privateWorkspace ? 'Private workspace' : workspace.label,
+    branch: privateWorkspace ? 'Private branch' : branch || 'No branch',
+    cwd: pane?.foreground_cwd || pane?.cwd,
+    privateWorkspace,
+    harness: agentId ? (HARNESS_NAMES[agentId] || agentId) : '',
+    herdrVersion: snapshot.version ? ` v${snapshot.version}` : '',
+  };
+}
+
+export function presenceFromSnapshot(snapshot, privatePatterns = [], templates = DEFAULT_TEMPLATES, branch, herdrVersion) {
   if (!snapshot || !Array.isArray(snapshot.agents) || !Array.isArray(snapshot.workspaces)) {
     throw new TypeError('Malformed Herdr session snapshot');
   }
-
   const detected = snapshot.agents.length;
   if (detected === 0) return null;
-
   const working = snapshot.agents.filter(({ agent_status }) => agent_status === 'working').length;
-  const workspace = snapshot.workspaces.find(
-    ({ workspace_id }) => workspace_id === snapshot.focused_workspace_id,
-  );
-  const label = workspace?.label;
-  const details = label && !matchesPrivatePattern(label, privatePatterns)
-    ? `In ${label}`
-    : 'Working in Herdr';
-
-  return { details, state: `${working} working · ${detected} detected` };
+  const context = focusedContext(snapshot, privatePatterns, branch);
+  const values = {
+    workspace: context.workspace, branch: context.branch, working: String(working), detected: String(detected),
+    'herdrVersion?': herdrVersion ?? context.herdrVersion, 'harness?': context.harness,
+  };
+  const presence = {};
+  for (const field of ['details', 'state', 'largeImageText']) {
+    const value = renderTemplate(templates[field], values);
+    if (value) presence[field] = value;
+  }
+  return presence;
 }
 
 export function samePresence(left, right) {
   if (left === right) return true;
-  return Boolean(left && right) && left.details === right.details && left.state === right.state;
+  return Boolean(left && right) && left.details === right.details && left.state === right.state
+    && left.largeImageText === right.largeImageText;
 }

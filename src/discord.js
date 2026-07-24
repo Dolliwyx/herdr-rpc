@@ -57,11 +57,15 @@ export class DiscordPresence {
         if (this.startTimestamp === undefined || this.config.resetTimestampOnUpdate) {
           this.startTimestamp = Date.now();
         }
+        const { largeImageText, ...fields } = this.desired;
         await this.client.user.setActivity({
           name: 'Herdr',
-          ...this.desired,
+          ...fields,
           startTimestamp: this.startTimestamp,
-          ...(this.config.largeImageKey && { largeImageKey: this.config.largeImageKey }),
+          ...(this.config.largeImageKey && {
+            largeImageKey: this.config.largeImageKey,
+            ...(largeImageText && { largeImageText }),
+          }),
         });
       } else {
         this.startTimestamp = undefined;

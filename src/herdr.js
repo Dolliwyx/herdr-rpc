@@ -6,8 +6,8 @@ export const HERDR_PROTOCOL = 17;
 export const REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_PRESENCE_EVENTS = [
   'workspace.created', 'workspace.updated', 'workspace.metadata_updated', 'workspace.renamed',
-  'workspace.closed', 'workspace.focused', 'pane.created', 'pane.closed', 'pane.exited',
-  'pane.agent_detected',
+  'workspace.closed', 'workspace.focused', 'tab.focused', 'pane.focused', 'pane.created', 'pane.closed',
+  'pane.exited', 'pane.updated', 'pane.agent_detected',
 ];
 
 export function presenceSubscriptions(snapshot) {

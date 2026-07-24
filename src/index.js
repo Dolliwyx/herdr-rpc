@@ -2,7 +2,8 @@ import { ConfigWatcher, configPath } from './config.js';
 import { Debouncer } from './debounce.js';
 import { DiscordPresence } from './discord.js';
 import { defaultHerdrSocket, HerdrConnection } from './herdr.js';
-import { presenceFromSnapshot } from './presence.js';
+import { focusedContext, presenceFromSnapshot } from './presence.js';
+import { BranchResolver, VersionResolver } from './branch.js';
 
 const RETRY_DELAYS = [1000, 2000, 5000, 10000, 30000];
 const log = (message) => console.error(`[herdr-presence] ${message}`);
@@ -18,6 +19,8 @@ class Companion {
     this.herdrRetryTimer = undefined;
     this.lastHerdrError = undefined;
     this.refresh = new Debouncer(1000, () => this.refreshSnapshot());
+    this.branch = new BranchResolver(() => this.renderSnapshot());
+    this.version = new VersionResolver(() => this.renderSnapshot());
   }
 
   async start() {
@@ -42,6 +45,7 @@ class Companion {
       await connection.start();
       if (this.herdr !== connection) return;
       this.herdrConnected = true;
+      if (this.snapshot) this.applySnapshot(this.snapshot);
       this.herdrRetry = 0;
       this.lastHerdrError = undefined;
       log('Connected to Herdr');
@@ -55,7 +59,22 @@ class Companion {
 
   applySnapshot(snapshot) {
     this.snapshot = snapshot;
-    this.discord.set(presenceFromSnapshot(snapshot, this.privatePatterns));
+    const context = focusedContext(snapshot, this.privatePatterns, this.branch.branch);
+    this.branch.update({
+      cwd: context.cwd,
+      privateWorkspace: context.privateWorkspace,
+      active: this.herdrConnected && snapshot.agents.length > 0,
+    });
+    this.renderSnapshot();
+  }
+
+  renderSnapshot() {
+    if (!this.snapshot) return;
+    const config = this.config?.current;
+    this.discord.set(presenceFromSnapshot(
+      this.snapshot, this.privatePatterns, config?.templates, this.branch.branch,
+      this.version.get(this.snapshot.version),
+    ));
   }
 
   async refreshSnapshot() {
@@ -76,6 +95,7 @@ class Companion {
     this.herdrConnected = false;
     this.snapshot = undefined;
     this.refresh.cancel();
+    this.branch.stop();
     this.discord.clear();
     if (wasConnected) log('Disconnected from Herdr');
     this.scheduleHerdrRetry();

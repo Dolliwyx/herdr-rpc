@@ -1,38 +1,48 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { presenceFromSnapshot, matchesPrivatePattern, samePresence } from '../src/presence.js';
+import { DEFAULT_TEMPLATES, focusedContext, presenceFromSnapshot, renderTemplate, samePresence, truncateText } from '../src/presence.js';
 
-const snapshot = (agents, focused_workspace_id = 'one') => ({
-  agents,
-  focused_workspace_id,
+const snapshot = (agents, extra = {}) => ({
+  agents, focused_workspace_id: 'one', focused_pane_id: 'pane', version: '1.2.3',
   workspaces: [{ workspace_id: 'one', label: 'Client Work' }],
+  panes: [{ pane_id: 'pane', cwd: '/repo', foreground_cwd: '/foreground', agent: 'pi' }], ...extra,
 });
 
-test('formats counts across all workspaces and uses focused workspace label', () => {
-  assert.deepEqual(presenceFromSnapshot(snapshot([
-    { agent_status: 'working' }, { agent_status: 'idle' }, { agent_status: 'working' },
-  ])), {
-    details: 'In Client Work', state: '2 working · 3 detected',
+test('renders default templates with counts, branch, version, and harness', () => {
+  assert.deepEqual(presenceFromSnapshot(snapshot([{ agent_status: 'working' }, { agent_status: 'idle' }]), [], DEFAULT_TEMPLATES, 'main'), {
+    details: 'In Client Work (main)', state: '1 working · 2 detected', largeImageText: 'Herdr v1.2.3 · Pi',
   });
 });
 
-test('uses generic details without a focused workspace or for a private workspace', () => {
-  assert.equal(presenceFromSnapshot(snapshot([{ agent_status: 'idle' }], null)).details, 'Working in Herdr');
-  assert.equal(presenceFromSnapshot(snapshot([{ agent_status: 'idle' }]), ['client*']).details, 'Working in Herdr');
+test('uses private substitutions and no-branch fallback', () => {
+  assert.equal(presenceFromSnapshot(snapshot([{ agent_status: 'idle' }]), ['client*']).details, 'In Private workspace (Private branch)');
+  assert.equal(presenceFromSnapshot(snapshot([{ agent_status: 'idle' }])).details, 'In Client Work (No branch)');
 });
 
-test('matches exact and glob private patterns case-insensitively', () => {
-  assert.equal(matchesPrivatePattern('Client Work', ['client work']), true);
-  assert.equal(matchesPrivatePattern('Secret/Alpha', ['secret/*']), true);
-  assert.equal(matchesPrivatePattern('Public', ['secret/*']), false);
+test('renders detached branches and unknown harnesses', () => {
+  const value = presenceFromSnapshot(snapshot([{ agent_status: 'idle' }], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'custom' }] }), [], DEFAULT_TEMPLATES, '@abc123');
+  assert.equal(value.details, 'In Client Work (@abc123)');
+  assert.equal(value.largeImageText, 'Herdr v1.2.3 · custom');
 });
 
-test('zero detected agents clears presence', () => {
+test('escapes braces and preserves unknown and malformed placeholders', () => {
+  assert.equal(renderTemplate('{{{workspace}}} {unknown} {workspace', { workspace: ' A ' }), '{ A } {unknown} {workspace');
+});
+
+test('omits empty rendered fields and truncates by grapheme cluster', () => {
+  const value = presenceFromSnapshot(snapshot([{ agent_status: 'idle' }]), [], { details: '', state: '', largeImageText: '' });
+  assert.deepEqual(value, {});
+  assert.equal(truncateText('👩‍💻'.repeat(129)), `${'👩‍💻'.repeat(127)}…`);
+});
+
+test('extracts focused foreground cwd and fallback cwd', () => {
+  assert.equal(focusedContext(snapshot([], { panes: [{ pane_id: 'pane', cwd: '/repo', foreground_cwd: '/foreground', agent: { agent_id: 'claude' } }] })).cwd, '/foreground');
+  const context = focusedContext(snapshot([], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'claude' }] }));
+  assert.equal(context.cwd, '/repo');
+  assert.equal(context.harness, 'Claude Code');
+});
+
+test('zero detected agents clears presence and equality includes hover text', () => {
   assert.equal(presenceFromSnapshot(snapshot([])), null);
-});
-
-test('distinguishes a cleared presence from an unpublished presence', () => {
-  assert.equal(samePresence(null, undefined), false);
-  assert.equal(samePresence(null, null), true);
-  assert.equal(samePresence({ details: 'In Shared', state: '0 working · 1 detected' }, { details: 'In Shared', state: '0 working · 1 detected' }), true);
+  assert.equal(samePresence({ details: 'a', largeImageText: 'x' }, { details: 'a', largeImageText: 'y' }), false);
 });
