@@ -24,7 +24,7 @@ test('uses private substitutions and no-branch fallback', () => {
 });
 
 test('renders detached branches and unknown harnesses in custom large-image templates without an icon', () => {
-  const templates = { ...DEFAULT_TEMPLATES, largeImageText: 'Herdr{herdrVersion?} · {harness?}' };
+  const templates = { ...DEFAULT_TEMPLATES, largeImageText: 'Herdr {herdrVersion?} · {harness?}' };
   const value = presenceFromSnapshot(
     snapshot([{ agent_status: 'idle' }], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'custom' }] }), [], templates, '@abc123', undefined,
     { largeImageKey: 'herdr', showHarnessIcon: true },
@@ -40,7 +40,7 @@ test('renders custom small-image templates with existing placeholders', () => {
     snapshot([{ agent_status: 'working' }]), [], { ...DEFAULT_TEMPLATES, smallImageText: '{workspace} {branch} {working}/{detected} {herdrVersion?} {harness?}' }, 'main', undefined,
     { largeImageKey: 'herdr' },
   );
-  assert.equal(value.smallImageText, 'Client Work main 1/1  v1.2.3 Pi');
+  assert.equal(value.smallImageText, 'Client Work main 1/1 v1.2.3 Pi');
 });
 
 test('escapes braces and preserves unknown and malformed placeholders', () => {

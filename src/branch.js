@@ -80,12 +80,12 @@ export class VersionResolver {
   }
 
   get(version) {
-    if (version) return ` v${version}`;
+    if (version) return `v${version}`;
     if (!this.requested) {
       this.requested = true;
       this.execFile('herdr', ['--version'], { timeout: 1000 }, (error, stdout) => {
         const output = stdout?.trim().replace(/^herdr\s+/i, '');
-        if (!error && output) { this.value = ` v${output}`; this.onChange(); }
+        if (!error && output) { this.value = `v${output}`; this.onChange(); }
       });
     }
     return this.value || '';

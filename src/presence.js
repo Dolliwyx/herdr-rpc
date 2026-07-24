@@ -1,7 +1,7 @@
 export const DEFAULT_TEMPLATES = Object.freeze({
   details: 'In {workspace} ({branch})',
   state: '{working} working · {detected} detected',
-  largeImageText: 'Herdr{herdrVersion?}',
+  largeImageText: 'Herdr {herdrVersion?}',
   smallImageText: '{harness?}',
 });
 
@@ -63,7 +63,7 @@ export function focusedContext(snapshot, privatePatterns = [], branch) {
     privateWorkspace,
     harnessId: agentId,
     harness: agentId ? (HARNESS_NAMES[agentId] || agentId) : '',
-    herdrVersion: snapshot.version ? ` v${snapshot.version}` : '',
+    herdrVersion: snapshot.version ? `v${snapshot.version}` : '',
   };
 }
 

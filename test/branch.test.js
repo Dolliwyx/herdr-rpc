@@ -63,8 +63,8 @@ test('normalizes the one-time Herdr version fallback', () => {
   const resolver = new VersionResolver(() => { changed += 1; }, {
     execFile(command, args, options, callback) { callback(null, 'herdr 0.7.5\n'); },
   });
-  assert.equal(resolver.get(), ' v0.7.5');
-  assert.equal(resolver.get(), ' v0.7.5');
+  assert.equal(resolver.get(), 'v0.7.5');
+  assert.equal(resolver.get(), 'v0.7.5');
   assert.equal(changed, 1);
 });
 
