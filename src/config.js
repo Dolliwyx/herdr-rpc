@@ -21,19 +21,23 @@ export function parseConfig(text) {
   if (value.resetTimestampOnUpdate !== undefined && typeof value.resetTimestampOnUpdate !== 'boolean') {
     throw new TypeError('config.json "resetTimestampOnUpdate" must be a boolean');
   }
+  if (value.showHarnessIcon !== undefined && typeof value.showHarnessIcon !== 'boolean') {
+    throw new TypeError('config.json "showHarnessIcon" must be a boolean');
+  }
   if (value.templates !== undefined && (!value.templates || Array.isArray(value.templates) || typeof value.templates !== 'object')) {
     throw new TypeError('config.json "templates" must be an object');
   }
   const templates = { ...DEFAULT_TEMPLATES, ...value.templates };
   if (!Object.keys(value.templates || {}).every((key) => Object.hasOwn(DEFAULT_TEMPLATES, key))
     || !Object.values(value.templates || {}).every((template) => typeof template === 'string')) {
-    throw new TypeError('config.json "templates" only permits string details, state, and largeImageText');
+    throw new TypeError('config.json "templates" only permits string details, state, largeImageText, and smallImageText');
   }
   return {
     clientId: value.clientId.trim(),
     privatePatterns: value.privatePatterns || [],
     largeImageKey: value.largeImageKey?.trim(),
     resetTimestampOnUpdate: value.resetTimestampOnUpdate ?? false,
+    showHarnessIcon: value.showHarnessIcon ?? true,
     templates,
   };
 }
@@ -60,6 +64,7 @@ export class ConfigWatcher {
         || JSON.stringify(next.privatePatterns) !== JSON.stringify(this.current?.privatePatterns)
         || next.largeImageKey !== this.current?.largeImageKey
         || next.resetTimestampOnUpdate !== this.current?.resetTimestampOnUpdate
+        || next.showHarnessIcon !== this.current?.showHarnessIcon
         || JSON.stringify(next.templates) !== JSON.stringify(this.current?.templates);
       this.current = next;
       if (changed) this.onConfig(next);

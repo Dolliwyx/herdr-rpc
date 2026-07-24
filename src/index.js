@@ -73,7 +73,7 @@ class Companion {
     const config = this.config?.current;
     this.discord.set(presenceFromSnapshot(
       this.snapshot, this.privatePatterns, config?.templates, this.branch.branch,
-      this.version.get(this.snapshot.version),
+      this.version.get(this.snapshot.version), config,
     ));
   }
 

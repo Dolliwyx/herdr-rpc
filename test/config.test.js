@@ -18,21 +18,26 @@ test('rejects invalid template objects, keys, and values', () => {
   }
 });
 
-test('parses optional image and timestamp config', () => {
-  const config = parseConfig(JSON.stringify({ clientId: '1', largeImageKey: ' herdr ', resetTimestampOnUpdate: true }));
+test('parses optional image, harness icon, and timestamp config', () => {
+  const config = parseConfig(JSON.stringify({ clientId: '1', largeImageKey: ' herdr ', resetTimestampOnUpdate: true, showHarnessIcon: false }));
   assert.equal(config.largeImageKey, 'herdr');
   assert.equal(config.resetTimestampOnUpdate, true);
+  assert.equal(config.showHarnessIcon, false);
+  assert.equal(parseConfig(JSON.stringify({ clientId: '1' })).showHarnessIcon, true);
+  assert.throws(() => parseConfig(JSON.stringify({ clientId: '1', showHarnessIcon: 'false' })));
 });
 
-test('reload notifies when templates change', async (t) => {
+test('reload notifies when templates or harness-icon setting change', async (t) => {
   const directory = await mkdtemp(join(tmpdir(), 'herdr-presence-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, 'config.json');
   const seen = [];
-  const watcher = new ConfigWatcher(path, (config) => seen.push(config.templates.details), () => {});
+  const watcher = new ConfigWatcher(path, (config) => seen.push([config.templates.details, config.showHarnessIcon]), () => {});
   await writeFile(path, JSON.stringify({ clientId: '1' }));
   await watcher.reload();
   await writeFile(path, JSON.stringify({ clientId: '1', templates: { details: 'Changed' } }));
   await watcher.reload();
-  assert.deepEqual(seen, [DEFAULT_TEMPLATES.details, 'Changed']);
+  await writeFile(path, JSON.stringify({ clientId: '1', templates: { details: 'Changed' }, showHarnessIcon: false }));
+  await watcher.reload();
+  assert.deepEqual(seen, [[DEFAULT_TEMPLATES.details, true], ['Changed', true], ['Changed', false]]);
 });

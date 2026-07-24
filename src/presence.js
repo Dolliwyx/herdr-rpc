@@ -1,7 +1,8 @@
 export const DEFAULT_TEMPLATES = Object.freeze({
   details: 'In {workspace} ({branch})',
   state: '{working} working · {detected} detected',
-  largeImageText: 'Herdr{herdrVersion?} · {harness?}',
+  largeImageText: 'Herdr{herdrVersion?}',
+  smallImageText: '{harness?}',
 });
 
 const LIMIT = 128;
@@ -11,6 +12,12 @@ const HARNESS_NAMES = {
   agy: 'Agy', omp: 'OMP', mastracode: 'MastraCode', kimi: 'Kimi', kiro: 'Kiro',
   droid: 'Droid', amp: 'Amp', grok: 'Grok', hermes: 'Hermes', kilo: 'Kilo', qodercli: 'Qoder CLI', maki: 'Maki',
 };
+
+const HARNESS_ASSET_KEYS = Object.freeze({
+  pi: 'pi', claude: 'claude', codex: 'codex', gemini: 'gemini', cursor: 'cursor', devin: 'devin', cline: 'cline',
+  opencode: 'opencode', copilot: 'copilot', agy: 'agy', omp: 'omp', mastracode: 'mastracode', kimi: 'kimi', kiro: 'kiro',
+  droid: 'droid', amp: 'amp', grok: 'grok', hermes: 'hermes', kilo: 'kilo', qodercli: 'qodercli', maki: 'maki',
+});
 
 export function matchesPrivatePattern(label, patterns) {
   return patterns.some((pattern) => {
@@ -54,12 +61,13 @@ export function focusedContext(snapshot, privatePatterns = [], branch) {
     branch: privateWorkspace ? 'Private branch' : branch || 'No branch',
     cwd: pane?.foreground_cwd || pane?.cwd,
     privateWorkspace,
+    harnessId: agentId,
     harness: agentId ? (HARNESS_NAMES[agentId] || agentId) : '',
     herdrVersion: snapshot.version ? ` v${snapshot.version}` : '',
   };
 }
 
-export function presenceFromSnapshot(snapshot, privatePatterns = [], templates = DEFAULT_TEMPLATES, branch, herdrVersion) {
+export function presenceFromSnapshot(snapshot, privatePatterns = [], templates = DEFAULT_TEMPLATES, branch, herdrVersion, imageConfig = {}) {
   if (!snapshot || !Array.isArray(snapshot.agents) || !Array.isArray(snapshot.workspaces)) {
     throw new TypeError('Malformed Herdr session snapshot');
   }
@@ -76,11 +84,17 @@ export function presenceFromSnapshot(snapshot, privatePatterns = [], templates =
     const value = renderTemplate(templates[field], values);
     if (value) presence[field] = value;
   }
+  if (imageConfig.showHarnessIcon !== false && imageConfig.largeImageKey && Object.hasOwn(HARNESS_ASSET_KEYS, context.harnessId)) {
+    presence.smallImageKey = HARNESS_ASSET_KEYS[context.harnessId];
+    const smallImageText = renderTemplate(templates.smallImageText, values);
+    if (smallImageText) presence.smallImageText = smallImageText;
+  }
   return presence;
 }
 
 export function samePresence(left, right) {
   if (left === right) return true;
   return Boolean(left && right) && left.details === right.details && left.state === right.state
-    && left.largeImageText === right.largeImageText;
+    && left.largeImageText === right.largeImageText && left.smallImageKey === right.smallImageKey
+    && left.smallImageText === right.smallImageText;
 }

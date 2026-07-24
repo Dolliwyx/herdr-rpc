@@ -57,7 +57,8 @@ export class DiscordPresence {
         if (this.startTimestamp === undefined || this.config.resetTimestampOnUpdate) {
           this.startTimestamp = Date.now();
         }
-        const { largeImageText, ...fields } = this.desired;
+        const { largeImageText, smallImageKey, smallImageText, ...fields } = this.desired;
+        const showHarnessIcon = this.config.showHarnessIcon !== false && this.config.largeImageKey && smallImageKey;
         await this.client.user.setActivity({
           name: 'Herdr',
           ...fields,
@@ -65,6 +66,10 @@ export class DiscordPresence {
           ...(this.config.largeImageKey && {
             largeImageKey: this.config.largeImageKey,
             ...(largeImageText && { largeImageText }),
+            ...(showHarnessIcon && {
+              smallImageKey,
+              ...(smallImageText && { smallImageText }),
+            }),
           }),
         });
       } else {

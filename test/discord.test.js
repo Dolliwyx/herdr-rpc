@@ -44,7 +44,7 @@ test('publishes the configured large image asset', async (t) => {
   const presence = new DiscordPresence(() => {}, FakeClient);
   presence.configure({ clientId: '1', privatePatterns: [], largeImageKey: 'herdr' });
   await tick();
-  presence.set({ details: 'In Shared', state: '1 working · 1 detected' });
+  presence.set({ details: 'In Shared', state: '1 working · 1 detected', smallImageKey: 'pi', smallImageText: 'Pi' });
   await tick();
   assert.deepEqual(presence.client.calls.at(-1), ['set', {
     name: 'Herdr',
@@ -52,6 +52,8 @@ test('publishes the configured large image asset', async (t) => {
     state: '1 working · 1 detected',
     startTimestamp: 100,
     largeImageKey: 'herdr',
+    smallImageKey: 'pi',
+    smallImageText: 'Pi',
   }]);
   presence.disconnect();
 });
@@ -64,6 +66,17 @@ test('only publishes hover text with a large image key', async () => {
   assert.equal('largeImageText' in presence.client.calls.at(-1)[1], false);
   presence.configure({ clientId: '1', privatePatterns: [], largeImageKey: 'herdr' }); await tick();
   assert.equal(presence.client.calls.at(-1)[1].largeImageText, 'hover');
+  presence.disconnect();
+});
+
+test('omits harness icon fields without a large image key or when disabled', async () => {
+  const presence = new DiscordPresence(() => {}, FakeClient);
+  presence.configure({ clientId: '1', privatePatterns: [] });
+  await tick();
+  presence.set({ details: 'In Shared', smallImageKey: 'pi', smallImageText: 'Pi' }); await tick();
+  assert.equal('smallImageKey' in presence.client.calls.at(-1)[1], false);
+  presence.configure({ clientId: '1', privatePatterns: [], largeImageKey: 'herdr', showHarnessIcon: false }); await tick();
+  assert.equal('smallImageKey' in presence.client.calls.at(-1)[1], false);
   presence.disconnect();
 });
 

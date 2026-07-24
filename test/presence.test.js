@@ -8,9 +8,13 @@ const snapshot = (agents, extra = {}) => ({
   panes: [{ pane_id: 'pane', cwd: '/repo', foreground_cwd: '/foreground', agent: 'pi' }], ...extra,
 });
 
-test('renders default templates with counts, branch, version, and harness', () => {
-  assert.deepEqual(presenceFromSnapshot(snapshot([{ agent_status: 'working' }, { agent_status: 'idle' }]), [], DEFAULT_TEMPLATES, 'main'), {
-    details: 'In Client Work (main)', state: '1 working · 2 detected', largeImageText: 'Herdr v1.2.3 · Pi',
+test('renders default templates with counts, version, and a focused harness icon', () => {
+  assert.deepEqual(presenceFromSnapshot(
+    snapshot([{ agent_status: 'working' }, { agent_status: 'idle' }]), [], DEFAULT_TEMPLATES, 'main', undefined,
+    { largeImageKey: 'herdr', showHarnessIcon: true },
+  ), {
+    details: 'In Client Work (main)', state: '1 working · 2 detected', largeImageText: 'Herdr v1.2.3',
+    smallImageKey: 'pi', smallImageText: 'Pi',
   });
 });
 
@@ -19,10 +23,24 @@ test('uses private substitutions and no-branch fallback', () => {
   assert.equal(presenceFromSnapshot(snapshot([{ agent_status: 'idle' }])).details, 'In Client Work (No branch)');
 });
 
-test('renders detached branches and unknown harnesses', () => {
-  const value = presenceFromSnapshot(snapshot([{ agent_status: 'idle' }], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'custom' }] }), [], DEFAULT_TEMPLATES, '@abc123');
+test('renders detached branches and unknown harnesses in custom large-image templates without an icon', () => {
+  const templates = { ...DEFAULT_TEMPLATES, largeImageText: 'Herdr{herdrVersion?} · {harness?}' };
+  const value = presenceFromSnapshot(
+    snapshot([{ agent_status: 'idle' }], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'custom' }] }), [], templates, '@abc123', undefined,
+    { largeImageKey: 'herdr', showHarnessIcon: true },
+  );
   assert.equal(value.details, 'In Client Work (@abc123)');
   assert.equal(value.largeImageText, 'Herdr v1.2.3 · custom');
+  assert.equal('smallImageKey' in value, false);
+  assert.equal('smallImageText' in value, false);
+});
+
+test('renders custom small-image templates with existing placeholders', () => {
+  const value = presenceFromSnapshot(
+    snapshot([{ agent_status: 'working' }]), [], { ...DEFAULT_TEMPLATES, smallImageText: '{workspace} {branch} {working}/{detected} {herdrVersion?} {harness?}' }, 'main', undefined,
+    { largeImageKey: 'herdr' },
+  );
+  assert.equal(value.smallImageText, 'Client Work main 1/1  v1.2.3 Pi');
 });
 
 test('escapes braces and preserves unknown and malformed placeholders', () => {
@@ -42,7 +60,20 @@ test('extracts focused foreground cwd and fallback cwd', () => {
   assert.equal(context.harness, 'Claude Code');
 });
 
-test('zero detected agents clears presence and equality includes hover text', () => {
+test('omits small-image fields without a supported focused harness and retains a key with empty text', () => {
+  const noFocusedPane = presenceFromSnapshot(snapshot([{ agent_status: 'idle' }], { focused_pane_id: 'missing' }), [], DEFAULT_TEMPLATES, undefined, undefined, { largeImageKey: 'herdr' });
+  assert.equal('smallImageKey' in noFocusedPane, false);
+  const emptyText = presenceFromSnapshot(
+    snapshot([{ agent_status: 'idle' }]), [], { ...DEFAULT_TEMPLATES, smallImageText: '' }, undefined, undefined,
+    { largeImageKey: 'herdr' },
+  );
+  assert.equal(emptyText.smallImageKey, 'pi');
+  assert.equal('smallImageText' in emptyText, false);
+  const hidden = presenceFromSnapshot(snapshot([{ agent_status: 'idle' }]), [], DEFAULT_TEMPLATES, undefined, undefined, { largeImageKey: 'herdr', showHarnessIcon: false });
+  assert.equal('smallImageKey' in hidden, false);
+});
+
+test('zero detected agents clears presence and equality includes image state', () => {
   assert.equal(presenceFromSnapshot(snapshot([])), null);
-  assert.equal(samePresence({ details: 'a', largeImageText: 'x' }, { details: 'a', largeImageText: 'y' }), false);
+  assert.equal(samePresence({ details: 'a', smallImageKey: 'pi' }, { details: 'a', smallImageKey: 'codex' }), false);
 });
