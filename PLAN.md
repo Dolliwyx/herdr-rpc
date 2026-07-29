@@ -10,16 +10,16 @@ The Discord client library assigns `created_at: Date.now()` on every `setActivit
 - Document the setting and cover config parsing plus Discord publishing behavior in tests.
 
 ## Files to modify
-- `src/config.js`
-- `src/discord.js`
-- `test/config.test.js`
-- `test/discord.test.js`
+- `src/config.ts`
+- `src/discord.ts`
+- `test/config.test.ts`
+- `test/discord.test.ts`
 - `README.md` (example configuration and the current “never sends … timestamps” privacy statement)
 
 ## Reuse
-- `ConfigWatcher.reload()` in `src/config.js` already validates, normalizes, and detects config changes.
-- `DiscordPresence.set()` / `publish()` in `src/discord.js` centralize all Discord activity updates.
-- `FakeClient` tests in `test/discord.test.js` already capture the payload passed to `setActivity`.
+- `ConfigWatcher.reload()` in `src/config.ts` already validates, normalizes, and detects config changes.
+- `DiscordPresence.set()` / `publish()` in `src/discord.ts` centralize all Discord activity updates.
+- `FakeClient` tests in `test/discord.test.ts` already capture the payload passed to `setActivity`.
 
 ## Steps
 - [ ] Parse `resetTimestampOnUpdate` as an optional boolean, default it to `false`, and include it in config change detection.
