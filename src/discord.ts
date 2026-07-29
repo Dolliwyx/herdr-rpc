@@ -1,23 +1,44 @@
 import { Client } from '@xhayper/discord-rpc';
-import { samePresence } from './presence.js';
+import { samePresence } from '#src/presence';
+import type { PresenceConfig } from '#src/config';
+import type { PresencePayload } from '#src/presence';
+
+export interface DiscordClient {
+  on(event: 'disconnected', listener: () => void): unknown;
+  login(): Promise<unknown>;
+  destroy(): Promise<unknown>;
+  user: {
+    setActivity(activity: object): Promise<unknown>;
+    clearActivity(): Promise<unknown>;
+  };
+}
+export interface DiscordClientConstructor {
+  new (options: { clientId: string }): DiscordClient;
+}
 
 const RETRY_DELAYS = [1000, 2000, 5000, 10000, 30000];
 
 export class DiscordPresence {
-  constructor(log, ClientClass = Client) {
+  readonly log: (message: string) => void;
+  readonly ClientClass: DiscordClientConstructor;
+  client: DiscordClient | undefined;
+  config: PresenceConfig | undefined;
+  desired: PresencePayload | null = null;
+  published: PresencePayload | null | undefined;
+  retry = 0;
+  retryTimer: ReturnType<typeof setTimeout> | undefined;
+  connected = false;
+  startTimestamp: number | undefined;
+
+  constructor(
+    log: (message: string) => void,
+    ClientClass: DiscordClientConstructor = Client as unknown as DiscordClientConstructor,
+  ) {
     this.log = log;
     this.ClientClass = ClientClass;
-    this.client = undefined;
-    this.config = undefined;
-    this.desired = null;
-    this.published = undefined;
-    this.retry = 0;
-    this.retryTimer = undefined;
-    this.connected = false;
-    this.startTimestamp = undefined;
   }
 
-  configure(config) {
+  configure(config: PresenceConfig) {
     const clientIdChanged = this.config?.clientId !== config.clientId;
     this.config = config;
     if (!clientIdChanged) {
@@ -29,7 +50,7 @@ export class DiscordPresence {
     this.connect();
   }
 
-  set(presence) {
+  set(presence: PresencePayload | null) {
     this.desired = presence;
     this.publish();
   }
@@ -39,26 +60,42 @@ export class DiscordPresence {
     const client = new this.ClientClass({ clientId: this.config.clientId });
     this.client = client;
     client.on('disconnected', () => this.lost());
-    client.login().then(() => {
-      if (this.client !== client) return;
-      this.connected = true;
-      this.retry = 0;
-      this.log('Connected to Discord');
-      this.publish();
-    }).catch(() => {
-      if (this.client === client) this.lost();
-    });
+    client
+      .login()
+      .then(() => {
+        if (this.client !== client) return;
+        this.connected = true;
+        this.retry = 0;
+        this.log('Connected to Discord');
+        this.publish();
+      })
+      .catch(() => {
+        if (this.client === client) this.lost();
+      });
   }
 
   async publish() {
-    if (!this.connected || !this.client || samePresence(this.desired, this.published)) return;
+    if (
+      !this.connected ||
+      !this.client ||
+      !this.config ||
+      samePresence(this.desired, this.published)
+    )
+      return;
     try {
       if (this.desired) {
-        if (this.startTimestamp === undefined || this.config.resetTimestampOnUpdate) {
+        if (
+          this.startTimestamp === undefined ||
+          this.config.resetTimestampOnUpdate
+        ) {
           this.startTimestamp = Date.now();
         }
-        const { largeImageText, smallImageKey, smallImageText, ...fields } = this.desired;
-        const showHarnessIcon = this.config.showHarnessIcon !== false && this.config.largeImageKey && smallImageKey;
+        const { largeImageText, smallImageKey, smallImageText, ...fields } =
+          this.desired;
+        const showHarnessIcon =
+          this.config.showHarnessIcon !== false &&
+          this.config.largeImageKey &&
+          smallImageKey;
         await this.client.user.setActivity({
           name: 'Herdr',
           ...fields,
