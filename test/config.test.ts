@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { ConfigWatcher, parseConfig } from '../src/config.js';
-import { DEFAULT_TEMPLATES } from '../src/presence.js';
+import { ConfigWatcher, parseConfig } from '#src/config';
+import { DEFAULT_TEMPLATES } from '#src/presence';
 
 test('parses defaults and partially merges templates without trimming values', () => {
   const config = parseConfig(JSON.stringify({ clientId: ' 1 ', templates: { details: '  {workspace}  ', state: '' } }));
@@ -31,7 +31,7 @@ test('reload notifies when templates or harness-icon setting change', async (t) 
   const directory = await mkdtemp(join(tmpdir(), 'herdr-presence-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const path = join(directory, 'config.json');
-  const seen = [];
+  const seen: [string, boolean][] = [];
   const watcher = new ConfigWatcher(path, (config) => seen.push([config.templates.details, config.showHarnessIcon]), () => {});
   await writeFile(path, JSON.stringify({ clientId: '1' }));
   await watcher.reload();

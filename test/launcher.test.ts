@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import test from 'node:test';
 
 const launcher = resolve('bin/herdr-presence');
-const shell = (args, env) => execFileSync('bash', [launcher, ...args], { env, encoding: 'utf8' });
+const shell = (args: string[], env: NodeJS.ProcessEnv) => execFileSync('bash', [launcher, ...args], { env, encoding: 'utf8' });
 
 test('starts one detached supervisor and stops only that supervisor', async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'herdr-presence-launcher-'));
@@ -30,7 +30,7 @@ while :; do sleep 1; done
   }
 
   assert.equal(shell(['start'], env), '');
-  let status;
+  let status: string | undefined;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
       status = shell(['status'], env);
@@ -39,7 +39,9 @@ while :; do sleep 1; done
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
   }
-  const [, pid] = status.match(/^running \(pid (\d+)\)\n$/);
+  const match = status?.match(/^running \(pid (\d+)\)\n$/);
+  assert.ok(match);
+  const pid = match[1];
   let fdState = '';
   for (let attempt = 0; attempt < 20; attempt += 1) {
     fdState = await readFile(fdCheck, 'utf8');
@@ -54,5 +56,7 @@ while :; do sleep 1; done
   shell(['stop'], env);
 
   await new Promise((resolve) => setTimeout(resolve, 50));
-  assert.throws(() => shell(['status'], env), (error) => error.status === 3);
+  assert.throws(() => shell(['status'], env), (error: unknown) =>
+    error instanceof Error && 'status' in error && error.status === 3,
+  );
 });

@@ -53,7 +53,7 @@ Presence exists only with one or more detected agents (`snapshot.agents`). Count
 
 Git resolution is companion-only: it checks the focused pane's `foreground_cwd` (then `cwd`) immediately after a focused context change and every five seconds only while Presence is active. Checks use a one-second timeout, one in flight at most, retain the last branch after transient failures, and never alter the Herdr protocol.
 
-Protocol validation is deliberately strict: this release requires Herdr protocol **17** exactly. A malformed, unavailable, or incompatible Herdr connection clears Discord Presence immediately and reconnects with bounded backoff. Discord restarts/absence also retry quietly with bounded backoff. The daemon logs transitions and actionable failures, not labels or every event.
+Protocol validation is deliberately strict: this release requires Herdr protocol **19** exactly. A malformed, unavailable, or incompatible Herdr connection clears Discord Presence immediately and reconnects with bounded backoff. Discord restarts/absence also retry quietly with bounded backoff. The daemon logs transitions and actionable failures, not labels or every event.
 
 ## Interactive Zsh launcher (WSL2)
 

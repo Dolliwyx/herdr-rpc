@@ -1,7 +1,19 @@
-export class Debouncer {
-  #timer;
+export interface TimerApi {
+  setTimeout(callback: () => void, delay?: number): unknown;
+  clearTimeout(timer: unknown): void;
+}
 
-  constructor(delayMs, callback, timers = globalThis) {
+export class Debouncer {
+  #timer: unknown;
+  readonly delayMs: number;
+  readonly callback: () => void;
+  readonly timers: TimerApi;
+
+  constructor(
+    delayMs: number,
+    callback: () => void,
+    timers: TimerApi = globalThis,
+  ) {
     this.delayMs = delayMs;
     this.callback = callback;
     this.timers = timers;
