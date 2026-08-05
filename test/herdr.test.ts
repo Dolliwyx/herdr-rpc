@@ -1,13 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deadline, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '#src/herdr';
+import { deadline, HerdrConnection, HERDR_PROTOCOL, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '#src/herdr';
 import type { TimerApi } from '#src/debounce';
 
 test('subscribes to focused pane context events', () => {
-  const types = presenceSubscriptions({ protocol: 17, agents: [], workspaces: [] }).map(({ type }) => type);
+  const types = presenceSubscriptions({ protocol: HERDR_PROTOCOL, agents: [], workspaces: [] }).map(({ type }) => type);
   assert.ok(types.includes('tab.focused'));
   assert.ok(types.includes('pane.focused'));
   assert.ok(types.includes('pane.updated'));
+});
+
+test('accepts Herdr 0.8 protocol 19 snapshots', () => {
+  const snapshot = { protocol: 19, agents: [], workspaces: [] };
+  let accepted;
+  const connection = new HerdrConnection('/unused', {
+    onSnapshot(value) { accepted = value; },
+    onEvent() {},
+    onUnavailable() {},
+  });
+
+  assert.equal(connection.acceptSnapshot({ type: 'session_snapshot', snapshot }), snapshot);
+  assert.equal(accepted, snapshot);
 });
 
 test('deadline uses the fixed request timeout and can be cleaned up', () => {

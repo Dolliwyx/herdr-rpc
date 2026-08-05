@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { TimerApi } from '#src/debounce';
 
-export const HERDR_PROTOCOL = 17;
+export const HERDR_PROTOCOL = 19;
 export const REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_PRESENCE_EVENTS = [
   'workspace.created',

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DEFAULT_TEMPLATES, focusedContext, presenceFromSnapshot, renderTemplate, samePresence, truncateText } from '#src/presence';
-import type { HerdrAgent, HerdrSnapshot } from '#src/herdr';
+import { HERDR_PROTOCOL, type HerdrAgent, type HerdrSnapshot } from '#src/herdr';
 
 const snapshot = (agents: HerdrAgent[], extra: Partial<HerdrSnapshot> = {}): HerdrSnapshot => ({
-  protocol: 17,
+  protocol: HERDR_PROTOCOL,
   agents, focused_workspace_id: 'one', focused_pane_id: 'pane', version: '1.2.3',
   workspaces: [{ workspace_id: 'one', label: 'Client Work' }],
   panes: [{ pane_id: 'pane', cwd: '/repo', foreground_cwd: '/foreground', agent: 'pi' }], ...extra,
