@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { TimerApi } from '#src/debounce';
 
-export const HERDR_PROTOCOL = 19;
+export const MIN_HERDR_PROTOCOL = 17;
 export const REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_PRESENCE_EVENTS = [
   'workspace.created',
@@ -30,17 +30,17 @@ export interface HerdrWorkspace {
 }
 export interface HerdrPane {
   pane_id: string;
-  foreground_cwd?: string;
-  cwd?: string;
-  agent?: string | { id?: string; agent_id?: string };
+  foreground_cwd?: string | null;
+  cwd?: string | null;
+  agent?: string | { id?: string; agent_id?: string } | null;
 }
 export interface HerdrSnapshot {
   protocol: number;
   agents: HerdrAgent[];
   workspaces: HerdrWorkspace[];
   panes?: HerdrPane[];
-  focused_workspace_id?: string;
-  focused_pane_id?: string;
+  focused_workspace_id?: string | null;
+  focused_pane_id?: string | null;
   version?: string;
 }
 export interface HerdrEvent {
@@ -51,14 +51,65 @@ interface HerdrResponse {
   result?: unknown;
   error?: { message?: string };
 }
-interface SessionSnapshotResult {
-  type: 'session_snapshot';
-  snapshot: HerdrSnapshot;
-}
 export interface HerdrConnectionOptions {
   onSnapshot(snapshot: HerdrSnapshot): void;
   onEvent(event: HerdrEvent): void;
   onUnavailable(): void;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+function isOptionalString(value: Record<string, unknown>, key: string) {
+  return value[key] === undefined || typeof value[key] === 'string';
+}
+function isOptionalNullableString(value: Record<string, unknown>, key: string) {
+  return (
+    value[key] === undefined ||
+    value[key] === null ||
+    typeof value[key] === 'string'
+  );
+}
+function isHerdrAgent(value: unknown): value is HerdrAgent {
+  return (
+    isRecord(value) &&
+    typeof value.pane_id === 'string' &&
+    isOptionalString(value, 'agent_status')
+  );
+}
+function isHerdrWorkspace(value: unknown): value is HerdrWorkspace {
+  return (
+    isRecord(value) &&
+    typeof value.workspace_id === 'string' &&
+    isOptionalString(value, 'label')
+  );
+}
+function isHerdrPane(value: unknown): value is HerdrPane {
+  return (
+    isRecord(value) &&
+    typeof value.pane_id === 'string' &&
+    isOptionalNullableString(value, 'foreground_cwd') &&
+    isOptionalNullableString(value, 'cwd') &&
+    (isOptionalNullableString(value, 'agent') ||
+      (isRecord(value.agent) &&
+        isOptionalString(value.agent, 'id') &&
+        isOptionalString(value.agent, 'agent_id')))
+  );
+}
+function isHerdrSnapshot(value: unknown): value is HerdrSnapshot {
+  return (
+    isRecord(value) &&
+    Number.isInteger(value.protocol) &&
+    Array.isArray(value.agents) &&
+    value.agents.every(isHerdrAgent) &&
+    Array.isArray(value.workspaces) &&
+    value.workspaces.every(isHerdrWorkspace) &&
+    (value.panes === undefined ||
+      (Array.isArray(value.panes) && value.panes.every(isHerdrPane))) &&
+    isOptionalNullableString(value, 'focused_workspace_id') &&
+    isOptionalNullableString(value, 'focused_pane_id') &&
+    isOptionalString(value, 'version')
+  );
 }
 
 export function presenceSubscriptions(snapshot: HerdrSnapshot) {
@@ -159,17 +210,17 @@ export class HerdrConnection {
     await this.subscribe(snapshot);
   }
   acceptSnapshot(result: unknown) {
-    const value = result as Partial<SessionSnapshotResult>;
-    if (
-      value?.type !== 'session_snapshot' ||
-      !value.snapshot ||
-      value.snapshot.protocol !== HERDR_PROTOCOL
-    )
+    if (!isRecord(result) || result.type !== 'session_snapshot')
+      throw new Error('Malformed Herdr response');
+    const snapshot = result.snapshot;
+    if (!isHerdrSnapshot(snapshot))
+      throw new Error('Malformed Herdr snapshot');
+    if (snapshot.protocol < MIN_HERDR_PROTOCOL)
       throw new Error(
-        `Incompatible Herdr protocol (requires ${HERDR_PROTOCOL})`,
+        `Incompatible Herdr protocol (requires ${MIN_HERDR_PROTOCOL} or newer)`,
       );
-    this.onSnapshot(value.snapshot);
-    return value.snapshot;
+    this.onSnapshot(snapshot);
+    return snapshot;
   }
   async subscribe(snapshot: HerdrSnapshot) {
     const socket = await this.openSubscription(snapshot);

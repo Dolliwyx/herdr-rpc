@@ -139,7 +139,7 @@ export function focusedContext(
   return {
     workspace: privateWorkspace ? 'Private workspace' : workspace.label!,
     branch: privateWorkspace ? 'Private branch' : branch || 'No branch',
-    cwd: pane?.foreground_cwd || pane?.cwd,
+    cwd: pane?.foreground_cwd || pane?.cwd || undefined,
     privateWorkspace,
     harnessId: agentId,
     harness: agentId ? HARNESS_NAMES[agentId] || agentId : '',
