@@ -4,8 +4,6 @@ import { join } from 'node:path';
 import type { TimerApi } from '#src/debounce';
 
 export const MIN_HERDR_PROTOCOL = 17;
-/** @deprecated Use MIN_HERDR_PROTOCOL. */
-export const HERDR_PROTOCOL = MIN_HERDR_PROTOCOL;
 export const REQUEST_TIMEOUT_MS = 10_000;
 const GLOBAL_PRESENCE_EVENTS = [
   'workspace.created',
@@ -32,17 +30,17 @@ export interface HerdrWorkspace {
 }
 export interface HerdrPane {
   pane_id: string;
-  foreground_cwd?: string;
-  cwd?: string;
-  agent?: string | { id?: string; agent_id?: string };
+  foreground_cwd?: string | null;
+  cwd?: string | null;
+  agent?: string | { id?: string; agent_id?: string } | null;
 }
 export interface HerdrSnapshot {
   protocol: number;
   agents: HerdrAgent[];
   workspaces: HerdrWorkspace[];
   panes?: HerdrPane[];
-  focused_workspace_id?: string;
-  focused_pane_id?: string;
+  focused_workspace_id?: string | null;
+  focused_pane_id?: string | null;
   version?: string;
 }
 export interface HerdrEvent {
@@ -65,6 +63,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function isOptionalString(value: Record<string, unknown>, key: string) {
   return value[key] === undefined || typeof value[key] === 'string';
 }
+function isOptionalNullableString(value: Record<string, unknown>, key: string) {
+  return (
+    value[key] === undefined ||
+    value[key] === null ||
+    typeof value[key] === 'string'
+  );
+}
 function isHerdrAgent(value: unknown): value is HerdrAgent {
   return (
     isRecord(value) &&
@@ -83,10 +88,9 @@ function isHerdrPane(value: unknown): value is HerdrPane {
   return (
     isRecord(value) &&
     typeof value.pane_id === 'string' &&
-    isOptionalString(value, 'foreground_cwd') &&
-    isOptionalString(value, 'cwd') &&
-    (value.agent === undefined ||
-      typeof value.agent === 'string' ||
+    isOptionalNullableString(value, 'foreground_cwd') &&
+    isOptionalNullableString(value, 'cwd') &&
+    (isOptionalNullableString(value, 'agent') ||
       (isRecord(value.agent) &&
         isOptionalString(value.agent, 'id') &&
         isOptionalString(value.agent, 'agent_id')))
@@ -102,8 +106,8 @@ function isHerdrSnapshot(value: unknown): value is HerdrSnapshot {
     value.workspaces.every(isHerdrWorkspace) &&
     (value.panes === undefined ||
       (Array.isArray(value.panes) && value.panes.every(isHerdrPane))) &&
-    isOptionalString(value, 'focused_workspace_id') &&
-    isOptionalString(value, 'focused_pane_id') &&
+    isOptionalNullableString(value, 'focused_workspace_id') &&
+    isOptionalNullableString(value, 'focused_pane_id') &&
     isOptionalString(value, 'version')
   );
 }

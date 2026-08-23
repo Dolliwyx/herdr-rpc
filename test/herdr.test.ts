@@ -35,6 +35,33 @@ test('accepts compatible Herdr protocol snapshots', () => {
   }
 });
 
+test('accepts null snapshot context fields', () => {
+  const value = snapshot({
+    panes: [
+      {
+        pane_id: 'pane',
+        cwd: null,
+        foreground_cwd: null,
+        agent: null,
+      },
+    ],
+    focused_workspace_id: null,
+    focused_pane_id: null,
+  });
+  let accepted: unknown;
+  const connection = new HerdrConnection('/unused', {
+    onSnapshot(received) { accepted = received; },
+    onEvent() {},
+    onUnavailable() {},
+  });
+
+  assert.equal(
+    connection.acceptSnapshot({ type: 'session_snapshot', snapshot: value }),
+    value,
+  );
+  assert.equal(accepted, value);
+});
+
 test('accepts unknown snapshot fields', () => {
   const value = snapshot({
     protocol: 20,
@@ -112,7 +139,9 @@ test('rejects malformed snapshots before calling onSnapshot', () => {
     snapshot({ panes: [{ pane_id: 'pane', foreground_cwd: 1 }] }),
     snapshot({ panes: [{ pane_id: 'pane', agent: 1 }] }),
     snapshot({ panes: [{ pane_id: 'pane', agent: { id: 1 } }] }),
+    snapshot({ panes: [{ pane_id: 'pane', agent: { id: null } }] }),
     snapshot({ panes: [{ pane_id: 'pane', agent: { agent_id: 1 } }] }),
+    snapshot({ panes: [{ pane_id: 'pane', agent: { agent_id: null } }] }),
     snapshot({ focused_workspace_id: 1 }),
     snapshot({ focused_pane_id: 1 }),
     snapshot({ version: 1 }),

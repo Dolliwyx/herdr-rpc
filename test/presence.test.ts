@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DEFAULT_TEMPLATES, focusedContext, presenceFromSnapshot, renderTemplate, samePresence, truncateText } from '#src/presence';
-import { HERDR_PROTOCOL, type HerdrAgent, type HerdrSnapshot } from '#src/herdr';
+import { MIN_HERDR_PROTOCOL, type HerdrAgent, type HerdrSnapshot } from '#src/herdr';
 
 const snapshot = (agents: HerdrAgent[], extra: Partial<HerdrSnapshot> = {}): HerdrSnapshot => ({
-  protocol: HERDR_PROTOCOL,
+  protocol: MIN_HERDR_PROTOCOL,
   agents, focused_workspace_id: 'one', focused_pane_id: 'pane', version: '1.2.3',
   workspaces: [{ workspace_id: 'one', label: 'Client Work' }],
   panes: [{ pane_id: 'pane', cwd: '/repo', foreground_cwd: '/foreground', agent: 'pi' }], ...extra,
@@ -65,6 +65,10 @@ test('extracts focused foreground cwd and fallback cwd', () => {
   const context = focusedContext(snapshot([], { panes: [{ pane_id: 'pane', cwd: '/repo', agent: 'claude' }] }));
   assert.equal(context.cwd, '/repo');
   assert.equal(context.harness, 'Claude Code');
+  assert.equal(
+    focusedContext(snapshot([], { panes: [{ pane_id: 'pane', cwd: null, foreground_cwd: null }] })).cwd,
+    undefined,
+  );
 });
 
 test('omits small-image fields without a supported focused harness and retains a key with empty text', () => {
