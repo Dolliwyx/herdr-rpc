@@ -18,6 +18,7 @@ const GLOBAL_PRESENCE_EVENTS = [
   'pane.closed',
   'pane.exited',
   'pane.updated',
+  'pane.moved',
   'pane.agent_detected',
 ];
 export interface HerdrAgent {
@@ -43,17 +44,13 @@ export interface HerdrSnapshot {
   focused_pane_id?: string | null;
   version?: string;
 }
-export interface HerdrEvent {
-  type?: string;
-  [key: string]: unknown;
-}
 interface HerdrResponse {
   result?: unknown;
   error?: { message?: string };
 }
 export interface HerdrConnectionOptions {
   onSnapshot(snapshot: HerdrSnapshot): void;
-  onEvent(event: HerdrEvent): void;
+  onEvent(): void;
   onUnavailable(): void;
 }
 
@@ -112,7 +109,9 @@ function isHerdrSnapshot(value: unknown): value is HerdrSnapshot {
   );
 }
 
-export function presenceSubscriptions(snapshot: HerdrSnapshot) {
+export function presenceSubscriptions(
+  snapshot: Pick<HerdrSnapshot, 'agents'>,
+) {
   return [
     ...GLOBAL_PRESENCE_EVENTS.map((type) => ({ type })),
     ...snapshot.agents.map(({ pane_id }) => ({
@@ -187,6 +186,8 @@ export class HerdrConnection {
   subscriptionSocket: net.Socket | undefined;
   readonly subscriptionHandlers = new Map<net.Socket, () => void>();
   nextId = 0;
+  refreshing: Promise<void> | undefined;
+  refreshAgain = false;
   constructor(
     path: string,
     { onSnapshot, onEvent, onUnavailable }: HerdrConnectionOptions,
@@ -197,14 +198,18 @@ export class HerdrConnection {
     this.onUnavailable = onUnavailable;
   }
   async start() {
-    const snapshot = this.acceptSnapshot(
+    await this.subscribe({ agents: [] });
+    await this.refresh();
+    await this.refresh();
+  }
+  async requestSnapshot() {
+    return this.acceptSnapshot(
       await oneRequest(this.path, {
         id: `presence:${++this.nextId}`,
         method: 'session.snapshot',
         params: {},
       }),
     );
-    await this.subscribe(snapshot);
   }
   acceptSnapshot(result: unknown) {
     if (!isRecord(result) || result.type !== 'session_snapshot')
@@ -219,7 +224,7 @@ export class HerdrConnection {
     this.onSnapshot(snapshot);
     return snapshot;
   }
-  async subscribe(snapshot: HerdrSnapshot) {
+  async subscribe(snapshot: Pick<HerdrSnapshot, 'agents'>) {
     const socket = await this.openSubscription(snapshot);
     if (this.closed) {
       socket.destroy();
@@ -233,7 +238,9 @@ export class HerdrConnection {
     this.subscriptionHandlers.set(socket, onUnavailable);
     this.retireSubscription(oldSocket);
   }
-  openSubscription(snapshot: HerdrSnapshot): Promise<net.Socket> {
+  openSubscription(
+    snapshot: Pick<HerdrSnapshot, 'agents'>,
+  ): Promise<net.Socket> {
     return new Promise((resolve, reject) => {
       const socket = net.createConnection(this.path);
       let buffer = '';
@@ -253,11 +260,11 @@ export class HerdrConnection {
           if (!line) continue;
           try {
             const message = JSON.parse(line) as {
-              event?: HerdrEvent;
+              event?: unknown;
               result?: { type?: string };
               error?: { message?: string };
             };
-            if (message.event) this.onEvent(message.event);
+            if (typeof message.event === 'string') this.onEvent();
             else if (message.result?.type === 'subscription_started')
               acknowledge();
             else if (message.error) fail(new Error(message.error.message));
@@ -307,14 +314,23 @@ export class HerdrConnection {
     }
     socket.destroy();
   }
-  async refresh() {
-    const snapshot = this.acceptSnapshot(
-      await oneRequest(this.path, {
-        id: `presence:${++this.nextId}`,
-        method: 'session.snapshot',
-        params: {},
-      }),
-    );
+  refresh() {
+    if (this.refreshing) {
+      this.refreshAgain = true;
+      return this.refreshing;
+    }
+    this.refreshing = (async () => {
+      do {
+        this.refreshAgain = false;
+        await this.refreshOnce();
+      } while (this.refreshAgain && !this.closed);
+    })().finally(() => {
+      this.refreshing = undefined;
+    });
+    return this.refreshing;
+  }
+  async refreshOnce() {
+    const snapshot = await this.requestSnapshot();
     await this.subscribe(snapshot);
   }
   unavailable() {

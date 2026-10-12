@@ -43,7 +43,7 @@ Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`)
 
 ## Behavior
 
-The companion directly connects to Herdr's default local Unix socket (`${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It takes a fresh session snapshot, subscribes to workspace and agent-affecting events, then takes another authoritative snapshot one second after an event burst. It never folds events into a local state mirror.
+The companion directly connects to Herdr's default local Unix socket (`${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It first establishes a lifecycle subscription, then takes an authoritative session snapshot and adds pane-specific agent subscriptions without dropping the initial stream. Events trigger a fresh snapshot one second after a burst; they are never folded into a local state mirror.
 
 Herdr 0.9's saved SSH machines are aggregated by the TUI client, not this server socket. Connected-machine agents and client-specific focus are therefore not represented; Presence may continue to show local activity while the TUI displays a remote machine.
 

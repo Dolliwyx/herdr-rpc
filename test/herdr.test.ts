@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { deadline, defaultHerdrSocket, HerdrConnection, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '#src/herdr';
+import type { HerdrSnapshot } from '#src/herdr';
 import type { TimerApi } from '#src/debounce';
 
 const snapshot = (extra: Record<string, unknown> = {}) => ({
@@ -15,6 +16,64 @@ test('subscribes to focused pane context events', () => {
   assert.ok(types.includes('tab.focused'));
   assert.ok(types.includes('pane.focused'));
   assert.ok(types.includes('pane.updated'));
+  assert.ok(types.includes('pane.moved'));
+});
+
+test('subscribes before taking the authoritative startup snapshot', async () => {
+  const calls: string[] = [];
+  const value = snapshot({ agents: [{ pane_id: 'pane' }] }) as HerdrSnapshot;
+  class OrderingConnection extends HerdrConnection {
+    override async subscribe(state: Pick<HerdrSnapshot, 'agents'>) {
+      calls.push(`subscribe:${state.agents.length}`);
+    }
+    override async requestSnapshot() {
+      calls.push('snapshot');
+      return value;
+    }
+  }
+
+  await new OrderingConnection('/unused', {
+    onSnapshot() {},
+    onEvent() {},
+    onUnavailable() {},
+  }).start();
+
+  assert.deepEqual(calls, [
+    'subscribe:0',
+    'snapshot',
+    'subscribe:1',
+    'snapshot',
+    'subscribe:1',
+  ]);
+});
+
+test('serializes overlapping refreshes and runs a trailing refresh', async () => {
+  let calls = 0;
+  let secondStarted!: () => void;
+  const started = new Promise<void>((resolve) => { secondStarted = resolve; });
+  const releases: Array<() => void> = [];
+  class SerialConnection extends HerdrConnection {
+    override async refreshOnce() {
+      calls += 1;
+      if (calls === 2) secondStarted();
+      await new Promise<void>((resolve) => releases.push(resolve));
+    }
+  }
+  const connection = new SerialConnection('/unused', {
+    onSnapshot() {},
+    onEvent() {},
+    onUnavailable() {},
+  });
+
+  const first = connection.refresh();
+  const second = connection.refresh();
+  assert.equal(first, second);
+  assert.equal(calls, 1);
+  releases.shift()!();
+  await started;
+  assert.equal(calls, 2);
+  releases.shift()!();
+  await first;
 });
 
 test('uses only the default-session socket', () => {
@@ -29,7 +88,7 @@ test('uses only the default-session socket', () => {
 });
 
 test('accepts compatible Herdr protocol snapshots', () => {
-  for (const protocol of [17, 19, 20, 1_000]) {
+  for (const protocol of [17, 19, 20, 22, 1_000]) {
     const value = snapshot({ protocol });
     let accepted: unknown;
     const connection = new HerdrConnection('/unused', {
@@ -93,7 +152,7 @@ test('accepts unknown snapshot fields', () => {
     ],
     focused_workspace_id: 'workspace',
     focused_pane_id: 'pane-one',
-    version: '0.8.0',
+    version: '0.9.1',
     unknown: true,
   });
   let accepted: unknown;
