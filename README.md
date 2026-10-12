@@ -1,19 +1,23 @@
 # Herdr Discord Rich Presence companion
 
-A personal WSL2 companion for Herdr and Discord Stable on Windows. It can publish the default local Herdr server's focused workspace label, Git branch, harness, version, agent counts, and the Presence start timestamp. It never sends paths, buttons, credentials, or data from remote/named Herdr sessions.
+A personal companion for Herdr running either natively on Windows or in WSL2, with Discord Stable on Windows. It can publish the default local Herdr server's focused workspace label, Git branch, harness, version, agent counts, and the Presence start timestamp. It never sends paths, buttons, credentials, or data from remote/named Herdr sessions.
 
 ## Features
 
 - Publishes the default local server's focused workspace, agent counts, and Presence start timestamp to Discord.
 - Keeps workspace labels private when they match configured private patterns.
-- Runs as a personal WSL2 setup using Windows Discord and `npiperelay.exe`; paths, dependencies, and launch behavior will likely need changes for other environments.
+- Runs natively on Windows with direct named-pipe connections, or in WSL2 with the existing `npiperelay.exe` Discord bridge.
+- Provides background launchers for PowerShell on Windows and interactive Zsh in WSL2.
 
 ## Requirements
 
-- Node.js 24
+- Node.js 24 or newer, installed in the same OS as the companion
+- Herdr running locally in that same OS (Windows companion → Windows Herdr; WSL companion → WSL Herdr)
 - Discord Stable running on Windows, exposing `\\.\pipe\discord-ipc-0`
-- `socat` in WSL and `npiperelay.exe` available from WSL
-- A Discord application client ID. No client secret or bot token is used.
+- Git on that OS's `PATH` for branch information
+- Windows background launcher: PowerShell 7 (`pwsh`)
+- WSL2 only: `socat` and `npiperelay.exe` available from WSL
+- A Discord application client ID. No client secret or bot token is used. Create an application in the [Discord Developer Portal](https://discord.com/developers/applications) and copy its **Application ID**.
 
 Install dependencies:
 
@@ -21,7 +25,12 @@ Install dependencies:
 npm install
 ```
 
-Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`:
+Create the companion's configuration file:
+
+- **Windows:** `%USERPROFILE%\.config\herdr-presence\config.json` (usually `C:\Users\YOU\.config\herdr-presence\config.json`). `XDG_CONFIG_HOME` and `APPDATA` do not override this path.
+- **WSL2:** `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`.
+
+Both use the same JSON format:
 
 ```json
 {
@@ -43,7 +52,14 @@ Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`)
 
 ## Behavior
 
-The companion directly connects to Herdr's default local Unix socket (`${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It first establishes a lifecycle subscription, then takes an authoritative session snapshot and adds pane-specific agent subscriptions without dropping the initial stream. Events trigger a fresh snapshot one second after a burst; they are never folded into a local state mirror.
+The companion directly connects to Herdr's default local API endpoint:
+
+- **WSL2:** Unix socket at `${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`.
+- **Windows:** named pipe derived from Herdr's config directory, normally `\\.\pipe\C:\Users\YOU\AppData\Roaming\herdr\herdr.sock`. Herdr's directory follows `XDG_CONFIG_HOME`, then `APPDATA`, then `%USERPROFILE%\AppData\Roaming`; its `HOME` and temporary-directory fallbacks are also supported. This is **Herdr's endpoint location**, not the companion's user-folder config path.
+
+`HERDR_SOCKET`, `HERDR_SOCKET_PATH`, and `HERDR_SESSION` do not redirect the companion to another session. Cross-OS Herdr connections are not supported; use the companion in the same OS as its Herdr server.
+
+It first establishes a lifecycle subscription, then takes an authoritative session snapshot and adds pane-specific agent subscriptions without dropping the initial stream. Events trigger a fresh snapshot one second after a burst; they are never folded into a local state mirror.
 
 Herdr 0.9's saved SSH machines are aggregated by the TUI client, not this server socket. Connected-machine agents and client-specific focus are therefore not represented; Presence may continue to show local activity while the TUI displays a remote machine.
 
@@ -56,6 +72,58 @@ Presence exists only with one or more detected agents (`snapshot.agents`). Count
 Git resolution is companion-only: it checks the focused pane's `foreground_cwd` (then `cwd`) immediately after a focused context change and every five seconds only while Presence is active. Checks use a one-second timeout, one in flight at most, retain the last branch after transient failures, and never alter the Herdr protocol.
 
 Protocol compatibility supports Herdr protocol **17** or newer. It tolerates newer protocol numbers and unknown fields, validates the snapshot structure it consumes, and still requires a successful subscription acknowledgement; incompatible API changes still fail validation. A malformed, unavailable, or incompatible Herdr connection clears Discord Presence immediately and reconnects with bounded backoff. Discord restarts/absence also retry quietly with bounded backoff. The daemon logs transitions and actionable failures, not labels or every event.
+
+## Install and use on native Windows
+
+Run these commands in **PowerShell 7** with Windows Node.js and Git on `PATH`. Use a Windows filesystem checkout, not a WSL checkout:
+
+```powershell
+git clone https://github.com/Dolliwyx/herdr-rpc.git
+cd herdr-rpc
+npm install
+```
+
+Create the config directory and open `config.json`:
+
+```powershell
+$configDir = Join-Path $env:USERPROFILE '.config\herdr-presence'
+New-Item -ItemType Directory -Force -Path $configDir | Out-Null
+notepad.exe (Join-Path $configDir 'config.json')
+```
+
+Paste the JSON example above, replace the client ID, and save as UTF-8. Configure Discord art assets as described above if you enable image keys. Run Herdr natively on Windows and keep Discord open; no `socat` or `npiperelay` is needed.
+
+Start and manage the background companion from the checkout:
+
+```powershell
+.\bin\herdr-presence.ps1 start
+.\bin\herdr-presence.ps1 status
+.\bin\herdr-presence.ps1 restart
+.\bin\herdr-presence.ps1 stop
+```
+
+`start` is silent and detached. An exclusive file lock prevents duplicate background supervisors, including simultaneous starts. `stop` requests shutdown of the verified supervisor and its own Node child; it never kills other Node or Herdr processes. Companion exits retry with bounded backoff, while Herdr and Discord disconnections use the companion's existing reconnect behavior.
+
+To start on your first interactive PowerShell session, optionally add this line to `$PROFILE` **after any Node version-manager initialization**, using your actual checkout path:
+
+```powershell
+& 'C:\Users\YOU\Code\herdr-rpc\bin\herdr-presence.ps1' start
+```
+
+This is shell startup, not Windows login startup. Later launcher invocations reuse the running supervisor. The launcher respects your PowerShell execution policy; if local scripts are blocked, follow your organization's policy or run `npm start` in the foreground instead. No execution-policy bypass is built in.
+
+State and logs live under `%USERPROFILE%\.local\state\herdr-presence`, independently of the XDG variables:
+
+```powershell
+$stateDir = Join-Path $env:USERPROFILE '.local\state\herdr-presence'
+Get-Content (Join-Path $stateDir 'launcher.log') -Tail 30 -Wait
+# In another terminal: companion messages, including connection/config errors
+Get-Content (Join-Path $stateDir 'companion-error.log') -Tail 30 -Wait
+```
+
+`launcher.log` appends supervisor failures and restart transitions. `companion.log` and `companion-error.log` contain stdout/stderr from the latest Node child and are replaced on each child restart. `status` reports the supervisor, not successful Herdr/Discord connections; check the companion log for those. If Herdr runs elevated, its pipe may deny an ordinary companion: keep both at the same privilege level, preferably non-administrator.
+
+For foreground troubleshooting, stop the background launcher and run `npm start` from the checkout. No Presence is published until Herdr detects at least one agent. On Windows, later PowerShell `cd` changes may require Herdr prompt shell integration for accurate Git branch reporting; see [Herdr's Windows documentation](https://herdr.dev/docs/windows-beta/).
 
 ## Interactive Zsh launcher (WSL2)
 
@@ -89,5 +157,7 @@ For foreground troubleshooting, run `npm start` after the relay is active.
 ## Tests
 
 ```sh
-npm test
+npm run check
 ```
+
+This runs typecheck and tests. The WSL launcher lifecycle test runs on Linux; the PowerShell launcher lifecycle test runs on Windows with PowerShell 7 installed. The local transport test uses a real Unix socket or Windows named pipe on its host platform.

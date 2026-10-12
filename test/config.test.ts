@@ -3,8 +3,21 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { ConfigWatcher, parseConfig } from '#src/config';
+import { configPath, ConfigWatcher, parseConfig } from '#src/config';
 import { DEFAULT_TEMPLATES } from '#src/presence';
+
+test('keeps Windows config under USERPROFILE, ignoring XDG_CONFIG_HOME and APPDATA', () => {
+  assert.equal(configPath({
+    USERPROFILE: 'C:\\Users\\A User',
+    XDG_CONFIG_HOME: 'C:\\Other',
+    APPDATA: 'C:\\Roaming',
+  }, 'win32'), 'C:\\Users\\A User\\.config\\herdr-presence\\config.json');
+});
+
+test('keeps the WSL config override', () => {
+  assert.equal(configPath({ XDG_CONFIG_HOME: '/custom' }, 'linux'),
+    '/custom/herdr-presence/config.json');
+});
 
 test('parses defaults and partially merges templates without trimming values', () => {
   const config = parseConfig(JSON.stringify({ clientId: ' 1 ', templates: { details: '  {workspace}  ', state: '' } }));
