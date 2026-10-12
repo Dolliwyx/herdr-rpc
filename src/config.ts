@@ -1,6 +1,6 @@
 import { mkdir, readFile, watch } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, posix, win32 } from 'node:path';
 import { DEFAULT_TEMPLATES } from '#src/presence';
 import type { PresenceTemplates } from '#src/presence';
 
@@ -26,9 +26,14 @@ function isConfigValue(value: unknown): value is ConfigValue {
   return Boolean(value) && !Array.isArray(value) && typeof value === 'object';
 }
 
-export function configPath(env: NodeJS.ProcessEnv = process.env) {
-  return join(
-    env.XDG_CONFIG_HOME || join(homedir(), '.config'),
+export function configPath(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform === 'win32')
+    return win32.join(env.USERPROFILE || homedir(), '.config', 'herdr-presence', 'config.json');
+  return posix.join(
+    env.XDG_CONFIG_HOME || posix.join(homedir(), '.config'),
     'herdr-presence',
     'config.json',
   );

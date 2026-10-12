@@ -82,7 +82,8 @@ test('uses only the default-session socket', () => {
       XDG_CONFIG_HOME: '/config',
       HERDR_SOCKET: '/other.sock',
       HERDR_SOCKET_PATH: '/named.sock',
-    }),
+      HERDR_SESSION: 'named',
+    }, 'linux'),
     '/config/herdr/herdr.sock',
   );
 });

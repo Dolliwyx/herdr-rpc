@@ -1,6 +1,6 @@
 import net from 'node:net';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { posix } from 'node:path';
 import type { TimerApi } from '#src/debounce';
 
 export const MIN_HERDR_PROTOCOL = 17;
@@ -120,9 +120,27 @@ export function presenceSubscriptions(
     })),
   ];
 }
-export function defaultHerdrSocket(env: NodeJS.ProcessEnv = process.env) {
-  return join(
-    env.XDG_CONFIG_HOME || join(homedir(), '.config'),
+export function defaultHerdrSocket(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform === 'win32') {
+    // Herdr uses the literal PathBuf spelling as its pipe name, not a normalized path.
+    const append = (base: string, child: string) => {
+      const hasSeparator = /[\\/]$/.test(base);
+      const driveOnly = /^[a-z]:$/i.test(base);
+      return `${base}${base && !hasSeparator && !driveOnly ? '\\' : ''}${child}`;
+    };
+    const directory =
+      env.XDG_CONFIG_HOME !== undefined ? append(env.XDG_CONFIG_HOME, 'herdr') :
+      env.APPDATA !== undefined ? append(env.APPDATA, 'herdr') :
+      env.USERPROFILE !== undefined ? append(env.USERPROFILE, 'AppData\\Roaming\\herdr') :
+      env.HOME !== undefined ? append(env.HOME, '.config/herdr') :
+      append(tmpdir(), 'herdr');
+    return `\\\\.\\pipe\\${append(directory, 'herdr.sock')}`;
+  }
+  return posix.join(
+    env.XDG_CONFIG_HOME || posix.join(homedir(), '.config'),
     'herdr',
     'herdr.sock',
   );

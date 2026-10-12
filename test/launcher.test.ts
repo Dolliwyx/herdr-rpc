@@ -8,7 +8,7 @@ import test from 'node:test';
 const launcher = resolve('bin/herdr-presence');
 const shell = (args: string[], env: NodeJS.ProcessEnv) => execFileSync('bash', [launcher, ...args], { env, encoding: 'utf8' });
 
-test('starts one detached supervisor and stops only that supervisor', async (t) => {
+test('starts one detached supervisor and stops only that supervisor', { skip: process.platform !== 'linux' }, async (t) => {
   const root = await mkdtemp(join(tmpdir(), 'herdr-presence-launcher-'));
   const home = join(root, 'home');
   const bin = join(root, 'bin');
