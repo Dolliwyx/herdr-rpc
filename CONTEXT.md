@@ -9,7 +9,7 @@ The background presence publisher that waits for Herdr and represents its activi
 _Avoid_: Script, RPC
 
 **Focused Workspace**:
-The Herdr workspace currently selected by the user and represented as their present location. Its exact label is hidden only when it is a Private Workspace.
+The workspace identified as focused by the default local Herdr server snapshot and represented as the user's present location. It may differ from a client-specific or remote-machine selection. Its exact label is hidden only when it is a Private Workspace.
 _Avoid_: Space, project
 
 **Shared Workspace**:
@@ -33,5 +33,5 @@ A detected agent whose current Herdr state is `working`.
 _Avoid_: Active agent, running agent
 
 **Presence**:
-The Discord Rich Presence entry containing the focused workspace and the counts of working and detected agents across all Herdr workspaces.
+The Discord Rich Presence entry containing the Focused Workspace and the counts of Working and Detected Agents across the default local Herdr session.
 _Avoid_: Status, RPC status

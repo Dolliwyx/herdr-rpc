@@ -1,10 +1,10 @@
 # Herdr Discord Rich Presence companion
 
-A personal WSL2 companion for Herdr and Discord Stable on Windows. It can publish a focused workspace label, Git branch, harness, Herdr version, agent counts, and the Presence start timestamp. It never sends paths, buttons, credentials, or data from remote/named Herdr sessions.
+A personal WSL2 companion for Herdr and Discord Stable on Windows. It can publish the default local Herdr server's focused workspace label, Git branch, harness, version, agent counts, and the Presence start timestamp. It never sends paths, buttons, credentials, or data from remote/named Herdr sessions.
 
 ## Features
 
-- Publishes the focused Herdr workspace, agent counts, and Presence start timestamp to Discord.
+- Publishes the default local server's focused workspace, agent counts, and Presence start timestamp to Discord.
 - Keeps workspace labels private when they match configured private patterns.
 - Runs as a personal WSL2 setup using Windows Discord and `npiperelay.exe`; paths, dependencies, and launch behavior will likely need changes for other environments.
 
@@ -43,9 +43,11 @@ Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`)
 
 ## Behavior
 
-The companion directly connects to Herdr's default local Unix socket (`$HERDR_SOCKET` when set, otherwise `${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It takes a fresh session snapshot, subscribes to workspace and agent-affecting events, then takes another authoritative snapshot one second after an event burst. It never folds events into a local state mirror.
+The companion directly connects to Herdr's default local Unix socket (`${XDG_CONFIG_HOME:-~/.config}/herdr/herdr.sock`). It takes a fresh session snapshot, subscribes to workspace and agent-affecting events, then takes another authoritative snapshot one second after an event burst. It never folds events into a local state mirror.
 
-Presence exists only with one or more detected agents (`snapshot.agents`). Counts cover all workspaces:
+Herdr 0.9's saved SSH machines are aggregated by the TUI client, not this server socket. Connected-machine agents and client-specific focus are therefore not represented; Presence may continue to show local activity while the TUI displays a remote machine.
+
+Presence exists only with one or more detected agents (`snapshot.agents`). Counts cover all workspaces in the default local session:
 
 - Default Details: `In {workspace} ({branch})`; branch is the raw Git branch, detached `@<short hash>`, or `No branch` when Git definitively reports no repository/branch. A transient Git failure retains the last known branch.
 - Default State: `{working} working · {detected} detected`.

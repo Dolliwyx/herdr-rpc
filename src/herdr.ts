@@ -122,13 +122,10 @@ export function presenceSubscriptions(snapshot: HerdrSnapshot) {
   ];
 }
 export function defaultHerdrSocket(env: NodeJS.ProcessEnv = process.env) {
-  return (
-    env.HERDR_SOCKET ||
-    join(
-      env.XDG_CONFIG_HOME || join(homedir(), '.config'),
-      'herdr',
-      'herdr.sock',
-    )
+  return join(
+    env.XDG_CONFIG_HOME || join(homedir(), '.config'),
+    'herdr',
+    'herdr.sock',
   );
 }
 export function deadline(

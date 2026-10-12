@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { deadline, HerdrConnection, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '#src/herdr';
+import { deadline, defaultHerdrSocket, HerdrConnection, presenceSubscriptions, REQUEST_TIMEOUT_MS } from '#src/herdr';
 import type { TimerApi } from '#src/debounce';
 
 const snapshot = (extra: Record<string, unknown> = {}) => ({
@@ -15,6 +15,17 @@ test('subscribes to focused pane context events', () => {
   assert.ok(types.includes('tab.focused'));
   assert.ok(types.includes('pane.focused'));
   assert.ok(types.includes('pane.updated'));
+});
+
+test('uses only the default-session socket', () => {
+  assert.equal(
+    defaultHerdrSocket({
+      XDG_CONFIG_HOME: '/config',
+      HERDR_SOCKET: '/other.sock',
+      HERDR_SOCKET_PATH: '/named.sock',
+    }),
+    '/config/herdr/herdr.sock',
+  );
 });
 
 test('accepts compatible Herdr protocol snapshots', () => {
