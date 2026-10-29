@@ -1,0 +1,15 @@
+{
+  "clientId": "1529832902387302510",
+  "statusDisplayType": 0,
+  "activityType": 0,
+  "privatePatterns": ["client-*", "Personal"],
+  "largeImageKey": "herdr",
+  "showHarnessIcon": true,
+  "resetTimestampOnUpdate": false,
+  "templates": {
+    "details": "In {workspace} ({branch}) on {harness?}",
+    "state": "Working with {detected} agents",
+    "largeImageText": "Herdr {herdrVersion?}",
+    "smallImageText": "{harness?}"
+  }
+}
