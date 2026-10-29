@@ -98,6 +98,8 @@ export class DiscordPresence {
           smallImageKey;
         await this.client.user.setActivity({
           name: 'Herdr',
+          statusDisplayType: this.config.statusDisplayType,
+          type: this.config.activityType,
           ...fields,
           startTimestamp: this.startTimestamp,
           ...(this.config.largeImageKey && {

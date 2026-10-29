@@ -18,7 +18,8 @@ class FakeClient {
 
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 const config = (overrides: Partial<PresenceConfig> = {}): PresenceConfig => ({
-  clientId: '1', privatePatterns: [], resetTimestampOnUpdate: false,
+  clientId: '1', statusDisplayType: 0, activityType: 0,
+  privatePatterns: [], resetTimestampOnUpdate: false,
   showHarnessIcon: true, templates: DEFAULT_TEMPLATES, ...overrides,
 });
 const client = (presence: DiscordPresence) => {
@@ -60,6 +61,8 @@ test('publishes the configured large image asset', async (t) => {
   await tick();
   assert.deepEqual(client(presence).calls.at(-1), ['set', {
     name: 'Herdr',
+    statusDisplayType: 0,
+    type: 0,
     details: 'In Shared',
     state: '1 working · 1 detected',
     startTimestamp: 100,
@@ -103,6 +106,32 @@ test('retains same-client configuration without reconnecting', async () => {
   await tick();
   assert.equal(client(presence), current);
   assert.equal((activity(client(presence).calls.at(-1)!) as { largeImageKey?: string }).largeImageKey, 'herdr');
+  presence.disconnect();
+});
+
+test('republishes display and activity type changes without reconnecting', async () => {
+  const presence = new DiscordPresence(() => {}, FakeClient);
+  presence.configure(config());
+  await tick();
+  presence.set({ details: 'In Shared', state: 'Working' });
+  await tick();
+  const current = client(presence);
+  for (const statusDisplayType of [0, 1, 2] as const) {
+    for (const activityType of [0, 2, 3, 5] as const) {
+      const count = current.calls.length;
+      presence.configure(config({ statusDisplayType, activityType }));
+      await tick();
+      assert.equal(client(presence), current);
+      assert.equal(current.calls.length, count + 1);
+      const published = activity(current.calls.at(-1)!) as {
+        statusDisplayType: number; type: number; details: string; state: string;
+      };
+      assert.equal(published.statusDisplayType, statusDisplayType);
+      assert.equal(published.type, activityType);
+      assert.equal(published.details, 'In Shared');
+      assert.equal(published.state, 'Working');
+    }
+  }
   presence.disconnect();
 });
 

@@ -21,11 +21,15 @@ Install dependencies:
 npm install
 ```
 
-Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`:
+Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`. You can copy the repository's [`config.json`](config.json) as a boilerplate; it includes this project's public Discord application client ID and example templates. The companion reads the user config path, not the repository copy.
+
+For your own Discord application, use its client ID:
 
 ```json
 {
   "clientId": "YOUR_DISCORD_APPLICATION_CLIENT_ID",
+  "statusDisplayType": 0,
+  "activityType": 0,
   "privatePatterns": ["client-*", "Personal"],
   "largeImageKey": "herdr",
   "showHarnessIcon": true,
@@ -38,6 +42,15 @@ Create `${XDG_CONFIG_HOME:-~/.config}/herdr-presence/config.json`:
   }
 }
 ```
+
+Both settings below are optional and apply on config reload without restarting:
+
+| Setting | Allowed values | Default |
+| --- | --- | --- |
+| `statusDisplayType` | `0`: app name, `1`: rendered `templates.state`, `2`: rendered `templates.details` | `0` |
+| `activityType` | `0`: Playing, `2`: Listening to, `3`: Watching, `5`: Competing in | `0` |
+
+For example, set `statusDisplayType` to `1` and `activityType` to `3` to select the state text for the sidebar and the Watching activity type. State and details are shared with the profile activity; there is no separate sidebar-only text. Streaming (`1`), Custom (`4`), and arbitrary activity prefixes are not supported. Both settings require numeric values; invalid values retain the previous valid configuration.
 
 Private Patterns are case-insensitive exact labels or simple globs (`*` and `?`). Labels, branches, harness IDs, and Herdr versions are shared by default. A Private Workspace substitutes `Private workspace` and `Private branch`; Git is never invoked for it. `templates` is a strict object: it accepts only string `details`, `state`, `largeImageText`, and `smallImageText` values, merges partial overrides with the defaults above, and preserves whitespace (including empty values). Templates recognize `{workspace}`, `{branch}`, `{working}`, `{detected}`, `{herdrVersion?}`, and `{harness?}`. `{herdrVersion?}` renders as `v<version>` without leading whitespace. `{{` and `}}` write literal braces; unknown or malformed placeholders stay literal. Empty rendered fields are omitted and Discord text is safely limited to 128 grapheme clusters with `…`. `largeImageText` is sent only when `largeImageKey` is configured. `showHarnessIcon` defaults to `true`; when it is enabled, a recognized focused-pane harness publishes its bundled asset as the small image, but only when `largeImageKey` is configured. Unknown or unfocused harnesses publish no small image. `largeImageKey` is optional; upload [`assets/herdr.png`](assets/herdr.png) to the Discord application's **Rich Presence > Art Assets** as `herdr`, or use its uploaded asset key. Upload the bundled `assets/<harness-id>.png` files under their exact filename stems (for example, `codex`) to enable harness icons; see [`assets/SOURCES.md`](assets/SOURCES.md). Missing or misnamed Discord assets retain the companion's normal publish failure and reconnect behavior. `resetTimestampOnUpdate` defaults to `false`, preserving the start time while details or state change; set it to `true` to restart the visible timer on each republish. The Presence start timestamp reveals when the companion last started its current Presence, so consider that when choosing whether to use this companion. Invalid config reloads retain the last valid configuration; fix the reported file and save again. Atomic editor saves are supported.
 

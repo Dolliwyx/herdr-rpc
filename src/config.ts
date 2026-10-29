@@ -6,6 +6,8 @@ import type { PresenceTemplates } from '#src/presence';
 
 export interface PresenceConfig {
   clientId: string;
+  statusDisplayType: 0 | 1 | 2;
+  activityType: 0 | 2 | 3 | 5;
   privatePatterns: string[];
   largeImageKey?: string;
   resetTimestampOnUpdate: boolean;
@@ -15,6 +17,8 @@ export interface PresenceConfig {
 
 type ConfigValue = {
   clientId?: unknown;
+  statusDisplayType?: unknown;
+  activityType?: unknown;
   privatePatterns?: unknown;
   largeImageKey?: unknown;
   resetTimestampOnUpdate?: unknown;
@@ -42,6 +46,23 @@ export function parseConfig(text: string): PresenceConfig {
     !parsed.clientId.trim()
   ) {
     throw new TypeError('config.json needs a non-empty "clientId" string');
+  }
+  if (
+    parsed.statusDisplayType !== undefined &&
+    parsed.statusDisplayType !== 0 &&
+    parsed.statusDisplayType !== 1 &&
+    parsed.statusDisplayType !== 2
+  ) {
+    throw new TypeError('config.json "statusDisplayType" must be 0, 1, or 2');
+  }
+  if (
+    parsed.activityType !== undefined &&
+    parsed.activityType !== 0 &&
+    parsed.activityType !== 2 &&
+    parsed.activityType !== 3 &&
+    parsed.activityType !== 5
+  ) {
+    throw new TypeError('config.json "activityType" must be 0, 2, 3, or 5');
   }
   if (
     parsed.privatePatterns !== undefined &&
@@ -99,6 +120,8 @@ export function parseConfig(text: string): PresenceConfig {
   }
   return {
     clientId: parsed.clientId.trim(),
+    statusDisplayType: parsed.statusDisplayType ?? 0,
+    activityType: parsed.activityType ?? 0,
     privatePatterns: parsed.privatePatterns || [],
     largeImageKey: parsed.largeImageKey?.trim(),
     resetTimestampOnUpdate: parsed.resetTimestampOnUpdate ?? false,
@@ -135,6 +158,8 @@ export class ConfigWatcher {
       const next = parseConfig(await readFile(this.path, 'utf8'));
       const changed =
         next.clientId !== this.current?.clientId ||
+        next.statusDisplayType !== this.current?.statusDisplayType ||
+        next.activityType !== this.current?.activityType ||
         JSON.stringify(next.privatePatterns) !==
           JSON.stringify(this.current?.privatePatterns) ||
         next.largeImageKey !== this.current?.largeImageKey ||
